@@ -1,9 +1,7 @@
-# Sonora para Android — versão experimental
+# Sonora Offline — APK de teste
 
-[Descarregar Sonora.apk](https://github.com/efog82/app-videos-musicas/raw/refs/heads/main/downloads/Sonora.apk)
+[Descarregar APK](https://github.com/efog82/app-videos-musicas/raw/refs/heads/main/downloads/sonora-offline-teste.apk)
 
-Android 8 ou superior. Escolhe música (até 5 minutos), imagem opcional e título. Gera MP4 horizontal ou vertical no próprio telefone, sem serviço pago. Mantém a aplicação aberta durante a conversão e toca em Guardar vídeo no final.
+Requer Android 8.0 ou superior. Abrir o APK no telemóvel e, se solicitado pelo Android, permitir a instalação a partir da aplicação usada para descarregar o ficheiro.
 
-Abre o APK descarregado. Se o Android solicitar, permite instalar aplicações desta origem para o navegador/gestor de ficheiros utilizado. Podes desativar essa permissão após instalar. Não é necessário desativar o Play Protect.
-
-**Experimental:** compilação e assinatura verificadas; instalação e conversão ainda não testadas num dispositivo Android. Pode não funcionar em todos os aparelhos. Sem permissão de Internet. Assinado com chave de desenvolvimento; não é uma versão publicada na Play Store.
+Versão experimental 0.1.0, assinada com certificado de teste. A compilação e a assinatura foram verificadas; a execução e a exportação ainda não foram validadas num dispositivo. O emulador de teste reiniciou durante a instalação. A aplicação não declara permissão de internet; o processamento foi implementado localmente com codecs Android.
