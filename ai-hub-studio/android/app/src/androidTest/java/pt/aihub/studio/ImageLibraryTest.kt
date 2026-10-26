@@ -52,7 +52,8 @@ class ImageLibraryTest {
         compose.onNodeWithTag("media-gallery").performScrollToNode(hasTestTag("asset-card-$id"))
         compose.onNodeWithTag("delete-asset-$id").performClick();compose.onNodeWithText("Eliminar imagem?").assertIsDisplayed()
         compose.onNodeWithText("Cancelar").performClick();assertTrue(file.isFile);assertTrue(vm.assets.any{it.getString("id")==id})
-        compose.onNodeWithTag("delete-asset-$id").performClick();compose.onNodeWithTag("confirm-delete-asset").performClick()
+        compose.onNode(hasContentDescription("Imagem selecionada da galeria") and hasAnyAncestor(hasTestTag("asset-card-$id"))).performClick()
+        compose.onNodeWithTag("viewer-delete").performClick();compose.onNodeWithTag("confirm-delete-asset").performClick()
         compose.waitUntil(10000){vm.assets.none{it.getString("id")==id}}
         assertFalse(file.exists());assertTrue(vm.db.list("conversation").flatMap{it.optJSONArray("messages")?.objects().orEmpty()}.none{it.optString("assetId")==id})
         assertTrue(vm.db.list("conversation").any{it.toString().contains("Texto a preservar")});assertTrue(vm.db.list("conversation").any{it.toString().contains("Legenda a preservar")})

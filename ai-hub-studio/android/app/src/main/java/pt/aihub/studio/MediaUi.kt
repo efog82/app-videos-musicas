@@ -47,10 +47,14 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
         if(state in listOf("queued","running"))TextButton(onClick=onCancel){Text("Cancelar pedido")}
     }}
 }
+@Composable fun AssetDeletionConfirmation(asset:JSONObject,onConfirm:()->Unit,onDismiss:()->Unit){
+    AlertDialog(onDismissRequest=onDismiss,title={Text(if(asset.optString("kindMedia")=="image")"Eliminar imagem?" else "Eliminar vídeo?")},text={Text("A cópia privada e as referências no histórico da app serão removidas. Os ficheiros da galeria Android serão mantidos.")},confirmButton={TextButton(onClick=onConfirm,modifier=Modifier.testTag("confirm-delete-asset")){Text("Eliminar")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancelar")}})
+}
+
 @Composable fun AssetCard(asset:JSONObject,onOpen:()->Unit,onAnimate:()->Unit,onVariation:()->Unit,onSave:()->Unit,onShare:()->Unit,onProject: @Composable () -> Unit,onDelete:()->Unit) {
     val image=asset.optString("kindMedia")=="image"
     var confirmDelete by remember(asset.optString("id")){mutableStateOf(false)}
-    if(confirmDelete)AlertDialog(onDismissRequest={confirmDelete=false},title={Text(if(image)"Eliminar imagem?" else "Eliminar vídeo?")},text={Text("A cópia privada e as referências no histórico da app serão removidas. Os ficheiros da galeria Android serão mantidos.")},confirmButton={TextButton(onClick={confirmDelete=false;onDelete()},modifier=Modifier.testTag("confirm-delete-asset")){Text("Eliminar")}},dismissButton={TextButton(onClick={confirmDelete=false}){Text("Cancelar")}})
+    if(confirmDelete)AssetDeletionConfirmation(asset,onConfirm={confirmDelete=false;onDelete()},onDismiss={confirmDelete=false})
     var imageReady by remember(asset.optString("path")){mutableStateOf(false)}
     Card(Modifier.fillMaxWidth().testTag("asset-card-${asset.optString("id")}"),shape=RoundedCornerShape(22.dp)){
         Box(Modifier.fillMaxWidth().height(240.dp).clickable(onClick=onOpen).testTag(if(image)"asset-image" else "asset-video").semantics{if(image)stateDescription=if(imageReady)"Imagem preparada" else "A carregar imagem"},contentAlignment=Alignment.Center){
@@ -79,16 +83,18 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
     frame?.let{Image(bitmap=it.asImageBitmap(),contentDescription="Pré-visualização do vídeo gerado",modifier=Modifier.fillMaxSize().testTag("asset-video-thumbnail"))}?:CircularProgressIndicator(Modifier.size(24.dp))
 }
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun MediaViewer(asset:JSONObject,onDismiss:()->Unit,onSave:()->Unit,onShare:()->Unit,onAnimate:()->Unit,onVariation:()->Unit){
+@Composable fun MediaViewer(asset:JSONObject,onDismiss:()->Unit,onSave:()->Unit,onShare:()->Unit,onAnimate:()->Unit,onVariation:()->Unit,onDelete:(()->Unit)?=null){
+    var confirmDelete by remember(asset.optString("id")){mutableStateOf(false)}
     var scale by remember{mutableFloatStateOf(1f)};var x by remember{mutableFloatStateOf(0f)};var y by remember{mutableFloatStateOf(0f)}
     Dialog(onDismissRequest=onDismiss,properties=DialogProperties(usePlatformDefaultWidth=false)){
         Surface(Modifier.fillMaxSize(),color=Color.Black){Column{
-            TopAppBar(title={Text(if(asset.optString("kindMedia")=="video")"Vídeo gerado" else if(asset.optString("source")=="gallery")"Imagem selecionada" else "Imagem gerada",color=Color.White)},navigationIcon={IconButton(onClick=onDismiss){Icon(Icons.Outlined.Close,"Fechar pré-visualização",tint=Color.White)}},colors=TopAppBarDefaults.topAppBarColors(containerColor=Color.Black),actions={IconButton(onClick=onSave,modifier=Modifier.testTag("viewer-save")){Icon(Icons.Outlined.Download,"Guardar na galeria",tint=Color.White)};IconButton(onClick=onShare){Icon(Icons.Outlined.Share,"Partilhar ficheiro",tint=Color.White)}})
+            TopAppBar(title={Text(if(asset.optString("kindMedia")=="video")"Vídeo gerado" else if(asset.optString("source")=="gallery")"Imagem selecionada" else "Imagem gerada",color=Color.White)},navigationIcon={IconButton(onClick=onDismiss){Icon(Icons.Outlined.Close,"Fechar pré-visualização",tint=Color.White)}},colors=TopAppBarDefaults.topAppBarColors(containerColor=Color.Black),actions={IconButton(onClick=onSave,modifier=Modifier.testTag("viewer-save")){Icon(Icons.Outlined.Download,"Guardar na galeria",tint=Color.White)};IconButton(onClick=onShare){Icon(Icons.Outlined.Share,"Partilhar ficheiro",tint=Color.White)};if(asset.optString("kindMedia")=="image"&&onDelete!=null)IconButton(onClick={confirmDelete=true},modifier=Modifier.testTag("viewer-delete")){Icon(Icons.Outlined.DeleteOutline,"Eliminar imagem",tint=Color.White)}})
             if(asset.optString("kindMedia")=="video")MediaPlayer(asset.getString("path"),Modifier.weight(1f).fillMaxWidth())
             else Box(Modifier.weight(1f).fillMaxWidth().pointerInput(Unit){detectTransformGestures{_,pan,zoom,_->scale=(scale*zoom).coerceIn(1f,8f);x=if(scale>1)x+pan.x else 0f;y=if(scale>1)y+pan.y else 0f}},contentAlignment=Alignment.Center){AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem em ecrã completo com zoom",modifier=Modifier.fillMaxSize().graphicsLayer(scaleX=scale,scaleY=scale,translationX=x,translationY=y))}
             if(asset.optString("kindMedia")=="image")Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.SpaceEvenly){TextButton(onClick=onVariation){Text("Nova variação")};TextButton(onClick={scale=1f;x=0f;y=0f}){Text("Repor zoom")};Button(onClick=onAnimate,modifier=Modifier.testTag("viewer-animate")){Icon(Icons.Outlined.MotionPhotosOn,null);Text("Animar imagem",Modifier.padding(start=8.dp))}}
         }}
     }
+    if(confirmDelete)AssetDeletionConfirmation(asset,onConfirm={confirmDelete=false;onDelete?.invoke()},onDismiss={confirmDelete=false})
 }
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable fun MediaPlayer(path:String,modifier:Modifier=Modifier){

@@ -87,7 +87,7 @@ class MainActivity:ComponentActivity() {
     fun animate(asset:JSONObject){generation=GenerationRequest("video",if(asset.optString("source")=="gallery")"" else asset.optString("prompt"),asset.optString("conversation"),asset)}
     if(vm.settings)ProviderSettings(vm,onDismiss={vm.settings=false})
     generation?.let{request->GenerationSheet(vm,request,onDismiss={generation=null},onSubmit={generation=null})}
-    expanded?.let{asset->MediaViewer(asset,onDismiss={expanded=null},onSave={save(asset)},onShare={shareAsset(context,asset)},onAnimate={expanded=null;animate(asset)},onVariation={expanded=null;requestImage(asset.optString("prompt"),asset.optString("conversation"))})}
+    expanded?.let{asset->MediaViewer(asset,onDismiss={expanded=null},onSave={save(asset)},onShare={shareAsset(context,asset)},onAnimate={expanded=null;animate(asset)},onVariation={expanded=null;requestImage(asset.optString("prompt"),asset.optString("conversation"))},onDelete={vm.deleteAsset(asset);expanded=null})}
     ModalNavigationDrawer(drawerState=drawer,drawerContent={ModalDrawerSheet {
         Text("As tuas conversas",Modifier.padding(24.dp),style=MaterialTheme.typography.titleLarge)
         FilledTonalButton(onClick={vm.newChat();scope.launch{drawer.close()}},modifier=Modifier.fillMaxWidth().padding(horizontal=16.dp)){Icon(Icons.Outlined.Add,null);Text("Nova conversa",Modifier.padding(start=8.dp))}
