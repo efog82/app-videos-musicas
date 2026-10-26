@@ -1,5 +1,5 @@
 """Public, anonymous API research; generations are real and never paid fallbacks."""
-import json,time,subprocess,shutil
+import json,time,subprocess,shutil,os
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor,as_completed
 import httpx
@@ -9,12 +9,13 @@ out=Path('video-research-031');out.mkdir(exist_ok=True)
 image=Image.new('RGB',(832,480),'#86bed4');d=ImageDraw.Draw(image);d.polygon([(0,300),(220,80),(450,300)],fill='#4b6981');d.rectangle((0,300,832,480),fill='#32889c');d.polygon([(340,360),(440,360),(400,390)],fill='white');image.save(out/'reference-fixture.png')
 prompt='Cinematic wide shot of a paper boat drifting slowly across a turquoise mountain lake, gentle water ripples, soft golden sunlight, natural movement, camera slowly tracking sideways, no text'
 repos=['Lightricks/LTX-2-3','Wan-AI/Wan2.2-S2V','Wan-AI/Wan2.1','zai-org/CogVideoX-5B-Space','kaidjuric/cogvideox-5b-text-to-video','zerogpu-aoti/wan2-2-fp8da-aoti','zerogpu-aoti/wan2-2-fp8da-aoti-faster','multimodalart/wan2-2-fast','multimodalart/wan2-2-fast-i2v','Fhwang/wan2-video-generation']
+if os.getenv('AIHUB_VIDEO_PROBE_MODE')=='official-cog':repos=['zai-org/CogVideoX-5B-Space']
 results=[]
 def inspect(repo):
  r={'repo':repo,'test':'REAL_API_DISCOVERY','started':time.time()}
  try:
   with httpx.Client(timeout=25,follow_redirects=True) as h:
-   response=h.get('https://huggingface.co/api/spaces/'+repo);response.raise_for_status();meta=response.json();r.update(stage=meta.get('runtime',{}).get('stage'),host=meta.get('host'),private=meta.get('private'))
+   response=h.get('https://huggingface.co/api/spaces/'+repo);response.raise_for_status();meta=response.json();r.update(stage=meta.get('runtime',{}).get('stage'),host=meta.get('host'),private=meta.get('private'),runtime=meta.get('runtime'))
    if r['private']:raise ValueError('Private Space: not accessed')
    if r['stage'] not in ['RUNNING','SLEEPING']:raise ValueError('Unavailable runtime '+str(r['stage']))
    for name in ['app.py','README.md']:
@@ -31,12 +32,16 @@ with ThreadPoolExecutor(max_workers=5) as pool:
 def generate(repo,reference=False):
  r={'repo':repo,'test':'REAL_GENERATION','reference':reference,'started':time.time()}
  try:
+  with httpx.Client(timeout=25,follow_redirects=True) as h:meta=h.get('https://huggingface.co/api/spaces/'+repo).json()
+  hardware=meta.get('runtime',{}).get('hardware',{}).get('current','')
+  r['hardware']=hardware
+  if os.getenv('AIHUB_VIDEO_PROBE_MODE')=='official-cog' and 'zero' in hardware.lower():raise ValueError('ZeroGPU anonymous quota previously exhausted; no repeat or auth bypass attempted')
   c=Client(repo,verbose=False,httpx_kwargs={'timeout':120});api=c.view_api(return_format='dict');endpoints=api.get('named_endpoints',{})
   names=['/image_to_video','/generate_video','/generate','/infer'] if reference else ['/text_to_video','/generate_video','/generate','/infer']
   name=next((k for k in names if k in endpoints),None)
   if not name:raise ValueError('No compatible public endpoint: '+','.join(endpoints))
   r['endpoint']=name
-  values={'prompt':prompt,'negative_prompt':'blurry, distorted, low quality, watermark','seed':310031,'randomize_seed':False,'width':832,'height':480,'duration':5,'duration_seconds':5,'num_frames':81,'frame_rate':16,'fps':16,'aspect_ratio':'16:9','image':None,'input_image':None,'image_path':None,'input_image_path':None,'audio':None,'audio_path':None,'input_audio':None}
+  values={'prompt':prompt,'negative_prompt':'blurry, distorted, low quality, watermark','seed':310031,'randomize_seed':False,'width':832,'height':480,'duration':5,'duration_seconds':5,'num_frames':81,'frame_rate':16,'fps':16,'aspect_ratio':'16:9','image_input':None,'video_input':None,'image':None,'input_image':None,'image_path':None,'input_image_path':None,'audio':None,'audio_path':None,'input_audio':None,'seed_value':310031,'scale_status':False,'rife_status':False}
   if reference:
    for key in ['image','input_image','image_path','input_image_path','start_image']:values[key]=handle_file(str(out/'reference-fixture.png'))
   args={}

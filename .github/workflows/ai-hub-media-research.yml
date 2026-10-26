@@ -20,6 +20,8 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install httpx gradio_client pillow
       - run: python scripts/probe_video_031.py
+        env:
+          AIHUB_VIDEO_PROBE_MODE: official-cog
       - uses: actions/upload-artifact@v4
         if: always()
         with:
