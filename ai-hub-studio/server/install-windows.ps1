@@ -2,6 +2,17 @@
 param([switch]$InstallOllama,[switch]$InstallComfyUI,[string]$Model='', [string]$BindAddress='')
 $ErrorActionPreference='Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
+if ($PSBoundParameters.Count -eq 0) {
+    Write-Host 'AI HUB STUDIO: 1 = instalar Ollama + modelo de texto pequeno; 2 = servidor para ferramentas existentes; 3 = usar apenas APIs no Android (sem PC)'
+    $modeChoice=Read-Host 'Escolha 1, 2 ou 3'
+    if ($modeChoice -eq '3') {Write-Host 'Na app abra Configuração e escolha Pollinations sem chave ou uma chave gratuita própria. Não é necessário instalar o servidor.';exit 0}
+    if ($modeChoice -eq '1') {
+        $InstallOllama=$true
+        Write-Host 'O modelo implica download e espaço em disco. Confirme a licença no catálogo https://ollama.com/library/qwen3'
+        $Model=Read-Host 'Nome do modelo (Enter = qwen3:1.7b, adequado para começar com 16 GB)'
+        if (!$Model) {$Model='qwen3:1.7b'}
+    } elseif ($modeChoice -ne '2') {throw 'Escolha inválida. Não foi instalado nenhum componente.'}
+}
 function Install-Package([string]$Id) {
     if (!(Get-Command winget -ErrorAction SilentlyContinue)) {throw 'Instale o App Installer (winget) da Microsoft Store e repita.'}
     & winget install --id $Id --exact --source winget --accept-source-agreements --accept-package-agreements
@@ -9,8 +20,8 @@ function Install-Package([string]$Id) {
 }
 if (!(Get-Command py -ErrorAction SilentlyContinue)) {
     Install-Package 'Python.Python.3.12'
-    Write-Host 'Python instalado. Feche esta janela e execute novamente Instalar-e-Iniciar.cmd para atualizar o PATH.'
-    exit 0
+    $env:Path=[Environment]::GetEnvironmentVariable('Path','Machine')+';'+[Environment]::GetEnvironmentVariable('Path','User')
+    if (!(Get-Command py -ErrorAction SilentlyContinue)) { Write-Host 'Python instalado. Reabra Instalar-e-Iniciar.cmd para atualizar o PATH.';exit 0 }
 }
 if (!(Test-Path .venv\Scripts\python.exe)) { & py -3 -m venv .venv; if($LASTEXITCODE){throw 'Falhou a criação do ambiente Python'} }
 $Python=(Resolve-Path .venv\Scripts\python.exe).Path

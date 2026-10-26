@@ -41,6 +41,13 @@ val freeServices = listOf(
 
 class DirectAi(private val vault:Vault) {
     private val nextUse = mutableMapOf<String,Long>()
+    private suspend fun waitUntil(deadline:Long,message:String,onWait:(String)->Unit) {
+        while(System.currentTimeMillis()<deadline) {
+            val remaining=deadline-System.currentTimeMillis()
+            onWait("$message (${remaining/1000+1}s)…")
+            delay(minOf(remaining,1000).coerceAtLeast(1))
+        }
+    }
     fun provider(id:String) = aiProviders.firstOrNull {it.id==id} ?: aiProviders.first()
     private fun api(p:AiProvider):Api = Api(
         {if(p.id=="ollama")vault.get("ollama").ifBlank{p.url} else p.url},
@@ -117,13 +124,14 @@ class DirectAi(private val vault:Vault) {
         }
         if(p.protocol=="classic") {
             val wait=(nextUse[id]?:0)-System.currentTimeMillis()
-            if(wait>0){onWait("A aguardar a próxima quota gratuita (${wait/1000+1}s)…");delay(wait)}
+            if(wait>0)waitUntil(System.currentTimeMillis()+wait,"A aguardar a próxima quota gratuita",onWait)
             nextUse[id]=System.currentTimeMillis()+31000
         }
         val body=JSONObject().put("model",model).put("messages",JSONArray(messages)).put("stream",false)
+        if(p.id=="openrouter")body.put("provider",JSONObject().put("max_price",JSONObject().put("prompt",0).put("completion",0)))
         val client=api(p)
         try {
-        val result=when(p.protocol) {
+        suspend fun complete():String=when(p.protocol) {
             "ollama"->client.obj("/api/chat","POST",body).getJSONObject("message").getString("content")
             "gemini"->{
                 val contents=messages.filter{it.optString("role")!="system"}.map {JSONObject().put("role",if(it.optString("role")=="assistant")"model" else "user").put("parts",JSONArray().put(JSONObject().put("text",it.getString("content"))))}
@@ -134,6 +142,13 @@ class DirectAi(private val vault:Vault) {
             }
             else->client.obj(if(p.protocol=="classic")"/openai" else "/chat/completions","POST",body).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
         }
+        val result=try{complete()}catch(e:AiHttpFailure){
+            if(p.protocol!="classic"||e.status !in listOf(402,429)||e.retryAfter==null||e.retryAfter !in 1..120)throw e
+            waitUntil(System.currentTimeMillis()+(e.retryAfter+1)*1000,"O serviço pediu espera antes da próxima quota gratuita",onWait)
+            complete() // One retry only, after the provider's exact Retry-After. No payments.
+        }
+        if(p.protocol=="classic")nextUse[id]=System.currentTimeMillis()+31000
+        require(result.isNotBlank()) {"O modelo não devolveu uma resposta textual"}
         verification(id,model,true)
         return result
         } catch(e:kotlinx.coroutines.CancellationException) {throw e} catch(e:Exception) {verification(id,model,false);throw e}
@@ -141,7 +156,7 @@ class DirectAi(private val vault:Vault) {
     suspend fun image(prompt:String,width:Int,height:Int,seed:Long,consent:Boolean,onWait:(String)->Unit):ByteArray {
         require(consent){"Autorize o envio das instruções ao Pollinations"}
         val wait=(nextUse["image"]?:0)-System.currentTimeMillis()
-        if(wait>0){onWait("A aguardar a quota de imagem (${wait/1000+1}s)…");delay(wait)}
+        if(wait>0)waitUntil(System.currentTimeMillis()+wait,"A aguardar a quota de imagem",onWait)
         nextUse["image"]=System.currentTimeMillis()+46000
         val path="/prompt/"+URLEncoder.encode(prompt,"UTF-8").replace("+","%20")+"?width=$width&height=$height&seed=$seed&safe=true"
         return Api({"https://image.pollinations.ai"},{""}).binary(path)

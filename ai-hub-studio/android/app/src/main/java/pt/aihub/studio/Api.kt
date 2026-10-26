@@ -9,6 +9,8 @@ import java.net.URI
 import java.net.URL
 import java.io.InputStream
 
+class AiHttpFailure(val status:Int,val retryAfter:Long?,message:String):java.io.IOException(message)
+
 class Api(private val base: () -> String, private val token: () -> String, private val headers: () -> Map<String,String> = { emptyMap() }, private val fingerprint: () -> String = { "" }, private val isPc:Boolean=false) {
     private fun connection(path: String, method: String): HttpURLConnection {
         require(base().isNotBlank()) { "Servidor PC não configurado. Use a configuração inicial ou introduza o IP privado do PC; não use 127.0.0.1 por Wi-Fi." }
@@ -36,7 +38,7 @@ class Api(private val base: () -> String, private val token: () -> String, priva
                 in 500..599->"Serviço indisponível (HTTP ${c.responseCode}); tente mais tarde ou outro fornecedor configurado"
                 else->"Pedido recusado (HTTP ${c.responseCode})"
             }
-            error(reason+if(detail.isNotBlank())". "+detail.take(500) else "")
+            throw AiHttpFailure(c.responseCode,c.getHeaderField("Retry-After")?.toLongOrNull(),reason+if(detail.isNotBlank())". "+detail.take(500) else "")
         }
         return c.inputStream.bufferedReader().use { it.readText() }
     }
@@ -67,7 +69,7 @@ class Api(private val base: () -> String, private val token: () -> String, priva
     suspend fun binary(path: String): ByteArray = withContext(Dispatchers.IO) {
         val c = connection(path,"GET")
         try {
-            require(c.responseCode in 200..299) { "Serviço indisponível ou quota esgotada (HTTP ${c.responseCode}). Aguarde; não haverá pagamentos automáticos." }
+            if(c.responseCode !in 200..299)response(c)
             require(c.contentType?.startsWith("image/")==true) { "O serviço não devolveu uma imagem" }
             c.inputStream.use { it.readBytes() }
         } finally { c.disconnect() }

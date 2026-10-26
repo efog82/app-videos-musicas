@@ -12,3 +12,6 @@ local.properties
 hub.db*
 pairing-token.txt
 files/
+
+.ci-pc/
+ci-pairing.json

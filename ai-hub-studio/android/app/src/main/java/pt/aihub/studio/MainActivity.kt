@@ -243,26 +243,31 @@ class MainActivity: ComponentActivity() {
                 tabs.forEach { label -> FilterChip(selected=tab==label,onClick={tab=label},label={Text(label)}) }
             }
             if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(status,Modifier.padding(horizontal=18.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary)
+            Text(status,Modifier.testTag("connection-status").padding(horizontal=18.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary)
             LazyColumn(Modifier.weight(1f).testTag("studio-content"),state=contentState,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 if(tab in listOf("Configuração","Modelos")) {
                     item { Title("Ligar uma inteligência artificial", "1. Sem API: Pollinations público ou modelos locais. 2. Com API: chave gratuita própria, ligação direta sem PC. 3. Servidor PC: Ollama/ComfyUI/FFmpeg por Wi-Fi com TLS ou USB. As interfaces oficiais no navegador são um modo separado.") }
                     item { Toggle("Ligar diretamente às IAs (sem servidor PC)",direct,{direct=it;model="";models=if(it)ai.cachedModels() else emptyList();vault.set("mode_v2",if(it)"direct" else "pc")}) }
                     if(direct) {
-                        item { Choice("Fornecedor de IA",aiProvider,aiProviders.map{it.id to it.name},{id->if(id.isNotBlank()){aiProvider=id;aiKey=vault.get("key_$id");freePlan=vault.get("free_$id")=="true";vault.set("ai_provider",id)}}) }
+                        item { Choice("Fornecedor de IA",aiProvider,aiProviders.map{it.id to it.name},{id->if(id.isNotBlank()){aiProvider=id;model="";aiKey=vault.get("key_$id");freePlan=vault.get("free_$id")=="true";vault.set("ai_provider",id)}}) }
                         item { Text(ai.provider(aiProvider).info); if(!ai.provider(aiProvider).local&&aiProvider!="pollinations") {Field(aiKey,{aiKey=it},"Chave API gratuita",secret=true);Toggle("Confirmo plano gratuito / créditos limitados, sem faturação automática",freePlan,{freePlan=it})} }
                         if(aiProvider=="ollama") item {Field(ollama,{ollama=it},"Endpoint Ollama (USB ou HTTPS com certificado válido)")}
+                        item {Choice("Modelo a testar (opcional; descoberto na API)",model,models.filter{it.optString("provider")==aiProvider}.map{aiProvider+"|"+it.getString("id") to it.getString("id")},{model=it})}
                         item { Toggle("Autorizar envio de conteúdo ao fornecedor escolhido",remote,{remote=it;vault.set("remote_consent",it.toString())}) }
                         item { Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                             Button(enabled=!busy&&(remote||ai.provider(aiProvider).local),onClick={action("Descobrir e testar IA") {
                                 vault.set("key_$aiProvider",aiKey.trim());vault.set("free_$aiProvider",freePlan.toString());vault.set("ollama",ollama.trim());vault.set("ai_provider",aiProvider)
                                 vault.set("mode_v2","direct");direct=true
-                                diagnostic=ai.test(aiProvider,consent=remote,freePlan=freePlan); models=ai.cachedModels()
+                                diagnostic=ai.test(aiProvider,selection=if(model.substringBefore('|')==aiProvider)model.substringAfter('|') else "",consent=remote,freePlan=freePlan); models=ai.cachedModels()
                                 val m=ai.automaticModels().firstOrNull{it.optString("provider")==aiProvider}
                                 if(m!=null)model=aiProvider+"|"+m.getString("id")
                                 vault.set("setup_v2","done")
                             }}) {Text("Descobrir e testar IA")}
                         };Text(diagnostic) }
+                        item {OutlinedButton(enabled=!busy&&(remote||ai.provider(aiProvider).local),onClick={action("Descobrir modelos sem enviar pergunta") {
+                            vault.set("key_$aiProvider",aiKey.trim());vault.set("free_$aiProvider",freePlan.toString());vault.set("ollama",ollama.trim());models=ai.discover(aiProvider)
+                            diagnostic="${models.count{it.optString("provider")==aiProvider}} modelo(s) descoberto(s). Selecione e teste uma resposta para habilitar o automático."
+                        }}){Text("Só descobrir modelos")}}
                         item {TextButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,android.net.Uri.parse(ai.provider(aiProvider).keyUrl)))}){Text(if(aiProvider=="pollinations")"Documentação e limites do serviço sem chave" else "Obter chave / consultar condições oficiais")};TextButton(onClick={tab="Chat"}){Text("Ir para o Chat")}}
                         item {Text("Modo automático: ${ai.automaticModels().size} modelos com resposta real verificada há menos de 30 minutos. Se a quota terminar, o modelo é retirado do automático até novo teste.",style=MaterialTheme.typography.bodySmall)}
                     } else item {Text("Servidor PC: execute Instalar-e-Iniciar.cmd no Windows, mantenha a janela aberta e complete a ligação nas Definições.");Button(onClick={tab="Definições"}){Text("Configurar ligação ao PC")}}
