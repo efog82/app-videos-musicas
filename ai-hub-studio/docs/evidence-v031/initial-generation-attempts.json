@@ -1,0 +1,72 @@
+[
+  {
+    "repo": "zerogpu-aoti/wan2-2-fp8da-aoti-faster",
+    "test": "REAL_GENERATION",
+    "reference": true,
+    "started": 1793032557.6344907,
+    "endpoint": "/generate_video",
+    "arguments": {
+      "input_image": {
+        "path": "video-research-031/reference-fixture.png",
+        "meta": {
+          "_type": "gradio.FileData"
+        },
+        "orig_name": "reference-fixture.png"
+      },
+      "steps": 6,
+      "duration_seconds": 5,
+      "guidance_scale": 1,
+      "guidance_scale_2": 1,
+      "seed": 310031,
+      "randomize_seed": false
+    },
+    "ok": false,
+    "error": "You have exceeded your ZeroGPU quota (105s requested vs. 30s left). Try again in 23:59:59. Authenticate with a Hugging Face token for more quota - https://huggingface.co/settings/tokens",
+    "elapsed": 3.24
+  },
+  {
+    "repo": "zai-org/CogVideoX-5B-Space",
+    "test": "REAL_GENERATION",
+    "reference": false,
+    "started": 1793032560.8761072,
+    "endpoint": "/generate",
+    "ok": false,
+    "error": "Unsupported required parameter image_input",
+    "elapsed": 0.18
+  },
+  {
+    "repo": "kaidjuric/cogvideox-5b-text-to-video",
+    "test": "REAL_GENERATION",
+    "reference": false,
+    "started": 1793032557.6351023,
+    "endpoint": "/generate",
+    "arguments": {
+      "num_inference_steps": 50,
+      "num_frames": 81,
+      "guidance_scale": 6.0,
+      "seed": 310031
+    },
+    "ok": false,
+    "error": "The requested GPU duration (270s) is larger than the maximum allowed",
+    "elapsed": 3.5
+  },
+  {
+    "repo": "Lightricks/LTX-2-3",
+    "test": "REAL_GENERATION",
+    "reference": false,
+    "started": 1793032557.63606,
+    "endpoint": "/generate_video",
+    "arguments": {
+      "input_image": null,
+      "duration": 5,
+      "enhance_prompt": false,
+      "seed": 310031,
+      "randomize_seed": false,
+      "height": 480,
+      "width": 832
+    },
+    "ok": false,
+    "error": "No GPU was available after 60s. <a style=\"white-space: nowrap;text-underline-offset: 2px;color: var(--body-text-color)\" href=\"https://huggingface.co/join\">Create a free account</a> to get a higher priority in ZeroGPU queues.",
+    "elapsed": 63.32
+  }
+]

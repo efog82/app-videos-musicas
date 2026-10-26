@@ -1,28 +1,34 @@
-# AI Hub Studio — estúdio multimédia v0.3.0
+# AI Hub Studio — estúdio multimédia v0.3.1
 
 Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente é preservada noutra pasta.
 
 **Nova interface Chat/Imagens/Vídeos/Projetos, com geração direta e pré-visualização dentro da app antes de guardar na galeria.** O relatório separa os testes Android dos testes externos e das integrações experimentais. Não é uma declaração de que toda a plataforma original está concluída.
 
+- [Configurar Wan 2.2 na v0.3.1](docs/CONFIGURACAO-v0.3.1.md)
+- [Investigação, testes reais e limites da v0.3.1](docs/RELATORIO-v0.3.1.md)
 - [Configurar a v0.3: chat, imagens e vídeos sem PC](docs/CONFIGURACAO-v0.3.md)
 - [Relatório e limites da v0.3](docs/RELATORIO-v0.3.md)
 - [Configuração do servidor e ferramentas anteriores](docs/CONFIGURACAO-v0.2.md)
 - [Auditoria: causas, correções e dependências](docs/AUDITORIA-v0.2.md)
 - [Integrações e limitações da plataforma](docs/INTEGRACOES.md)
 - [Workflows ComfyUI](docs/WORKFLOWS.md)
-- [Relatório desta atualização](docs/RELATORIO-v0.2.md)
+- [Relatório da correção v0.2](docs/RELATORIO-v0.2.md)
 
 ## Download
 
-[APK desta versão](https://github.com/efog82/app-videos-musicas/actions/runs/40338404664/artifacts/12659035566) · [Pacote Windows](https://github.com/efog82/app-videos-musicas/actions/runs/40338404664/artifacts/12658116871) · [Execução/testes](https://github.com/efog82/app-videos-musicas/actions/runs/40338404664)
+[APK desta versão](https://github.com/efog82/app-videos-musicas/actions/runs/40362560726/artifacts/12669841200) · [Pacote Windows](https://github.com/efog82/app-videos-musicas/actions/runs/40362560726/artifacts/12668593007) · [Execução/testes](https://github.com/efog82/app-videos-musicas/actions/runs/40362560726)
 
-No GitHub: **Actions → AI Hub Studio — APK e testes → execução da v0.3.0 → Artifacts**.
+No GitHub: **Actions → AI Hub Studio — APK e testes → execução da v0.3.1 → Artifacts**.
 
-- **AI-Hub-Studio-APK**: ZIP com `AI-Hub-Studio-v0.3.0-debug.apk` e SHA256.
+- **AI-Hub-Studio-APK**: ZIP com `AI-Hub-Studio-v0.3.1-debug.apk` e SHA256.
 - **AI-Hub-Studio-PC-Windows**: ZIP com `Instalar-e-Iniciar.cmd`, servidor, scripts e documentação.
 - Relatórios separados para servidor, Android, emulador e rede real.
 
 É uma assinatura de desenvolvimento, não de produção. A v0.1.0 usava uma chave efémera do runner: para instalar esta atualização pode ser necessário exportar os dados que pretenda guardar e desinstalar a anterior. O novo CI guarda a chave debug em cache para melhorar continuidade; cache não substitui assinatura de produção e pode ser eliminado.
+
+## Novo vídeo v0.3.1
+
+Abra uma imagem → **Animar imagem** → **Hugging Face · Wan 2.2 I2V 14B** → comece com **2 s**. Geração anónima horizontal e vertical comprovada, sem PC nem chave. Duração superior depende da quota; o endpoint aceita até 5 s, mas essa duração não foi comprovada. O LTX anterior continua disponível para texto e imagem. CogVideoX e LTX 2.3 foram investigados e não são apresentados como operacionais.
 
 ## Caminho mais curto
 

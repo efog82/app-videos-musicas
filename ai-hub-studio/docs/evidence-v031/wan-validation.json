@@ -1,0 +1,15 @@
+{
+  "source_run": 40361490759,
+  "source_artifact": 12667089574,
+  "generation_result": "remote MP4 returned, probe in runner failed because ffprobe was absent",
+  "validation": "ffprobe locally on downloaded original artifact, no new generation",
+  "sha256": "5b0721b069a5de74b2d7e617d4352a0bd378b89aaf2b6dbb2ca79f732517b7da",
+  "bytes": 105535,
+  "duration_seconds": 2.0625,
+  "width": 832,
+  "height": 480,
+  "fps": 16,
+  "frames": 33,
+  "codec": "h264",
+  "reference": "drawn test fixture, not an AI-generated image"
+}

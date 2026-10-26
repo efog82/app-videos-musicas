@@ -1,0 +1,30 @@
+[
+  {
+    "repo": "zerogpu-aoti/wan2-2-fp8da-aoti-faster",
+    "test": "REAL_GENERATION",
+    "reference": true,
+    "started": 1793032886.1518428,
+    "hardware": "zero-a10g",
+    "endpoint": "/generate_video",
+    "arguments": {
+      "input_image": {
+        "path": "video-research-031/reference-fixture.png",
+        "meta": {
+          "_type": "gradio.FileData"
+        },
+        "orig_name": "reference-fixture.png"
+      },
+      "steps": 4,
+      "duration_seconds": 2.0,
+      "guidance_scale": 1,
+      "guidance_scale_2": 1,
+      "seed": 310031,
+      "randomize_seed": false
+    },
+    "result": "('/tmp/gradio/5b0721b069a5de74b2d7e617d4352a0bd378b89aaf2b6dbb2ca79f732517b7da/tmp51dhawoi.mp4', 310031)",
+    "videos": [],
+    "ok": false,
+    "error": "[Errno 2] No such file or directory: 'ffprobe'",
+    "elapsed": 15.42
+  }
+]

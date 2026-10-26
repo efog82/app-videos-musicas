@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuite name="pt.aihub.studio.LiveProviderTest" tests="5" failures="0" errors="0" skipped="0" time="68.598" timestamp="2026-10-26T16:55:03" hostname="localhost">
+  <properties>
+    <property name="device" value="emulator-5554 - 11" />
+    <property name="flavor" value="" />
+    <property name="project" value=":app" />
+  </properties>
+  <testcase name="realAnonymousProviderDiscoversModelAndAnswersQuestion" classname="pt.aihub.studio.LiveProviderTest" time="33.88" />
+  <testcase name="realImagesAndImageToVideoAppearWithoutExportThenPersist" classname="pt.aihub.studio.MultimodalLiveTest" time="15.156" />
+  <testcase name="localProjectSurvivesActivityRecreationAndCanBeUsedInChat" classname="pt.aihub.studio.OfflineFlowTest" time="1.007" />
+  <testcase name="actualAndroidToCompanionTlsAndAuthentication" classname="pt.aihub.studio.PcTlsTest" time="2.563" />
+  <testcase name="wanImageToVideoIsReceivedPlayedExportedAndRetainedInProject" classname="pt.aihub.studio.WanVideoLiveTest" time="15.658" />
+</testsuite>
