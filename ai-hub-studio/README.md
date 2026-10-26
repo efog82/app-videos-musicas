@@ -1,10 +1,12 @@
-# AI Hub Studio — correção funcional v0.2.0
+# AI Hub Studio — estúdio multimédia v0.3.0
 
 Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente é preservada noutra pasta.
 
-**O fluxo ligar → descobrir → perguntar → receber uma resposta real passou no emulador Android em 26-10-2026.** Não é uma declaração de que toda a plataforma original está concluída.
+**Nova interface Chat/Imagens/Vídeos/Projetos, com geração direta e pré-visualização dentro da app antes de guardar na galeria.** O relatório separa os testes Android dos testes externos e das integrações experimentais. Não é uma declaração de que toda a plataforma original está concluída.
 
-- [Configurar Android, fornecedores gratuitos e PC](docs/CONFIGURACAO-v0.2.md)
+- [Configurar a v0.3: chat, imagens e vídeos sem PC](docs/CONFIGURACAO-v0.3.md)
+- [Relatório e limites da v0.3](docs/RELATORIO-v0.3.md)
+- [Configuração do servidor e ferramentas anteriores](docs/CONFIGURACAO-v0.2.md)
 - [Auditoria: causas, correções e dependências](docs/AUDITORIA-v0.2.md)
 - [Integrações e limitações da plataforma](docs/INTEGRACOES.md)
 - [Workflows ComfyUI](docs/WORKFLOWS.md)
@@ -12,11 +14,11 @@ Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente �
 
 ## Download
 
-[APK desta versão](https://github.com/efog82/app-videos-musicas/actions/runs/40314110724/artifacts/12645748816) · [Pacote Windows](https://github.com/efog82/app-videos-musicas/actions/runs/40314110724/artifacts/12646311568) · [Execução/testes](https://github.com/efog82/app-videos-musicas/actions/runs/40314110724)
+[APK desta versão](https://github.com/efog82/app-videos-musicas/actions/runs/40338404664/artifacts/12659035566) · [Pacote Windows](https://github.com/efog82/app-videos-musicas/actions/runs/40338404664/artifacts/12658116871) · [Execução/testes](https://github.com/efog82/app-videos-musicas/actions/runs/40338404664)
 
-No GitHub: **Actions → AI Hub Studio — APK e testes → execução da v0.2.0 → Artifacts**.
+No GitHub: **Actions → AI Hub Studio — APK e testes → execução da v0.3.0 → Artifacts**.
 
-- **AI-Hub-Studio-APK**: ZIP com `AI-Hub-Studio-v0.2.0-debug.apk` e SHA256.
+- **AI-Hub-Studio-APK**: ZIP com `AI-Hub-Studio-v0.3.0-debug.apk` e SHA256.
 - **AI-Hub-Studio-PC-Windows**: ZIP com `Instalar-e-Iniciar.cmd`, servidor, scripts e documentação.
 - Relatórios separados para servidor, Android, emulador e rede real.
 
@@ -24,7 +26,7 @@ No GitHub: **Actions → AI Hub Studio — APK e testes → execução da v0.2.0
 
 ## Caminho mais curto
 
-Abra Configuração, escolha uma IA, autorize envio e prima **Descobrir e testar IA**. Pollinations Classic permite pedidos públicos sem chave quando há quota; Gemini/Groq/OpenRouter/Mistral exigem chave própria de conta elegível. Não é necessário PC para essas ligações diretas. A app não distribui chaves nem ativa pagamentos.
+Abra a engrenagem de definições, escolha uma IA, autorize envio e prima **Descobrir e testar IA**. Pollinations Classic permite pedidos públicos sem chave quando há quota; Gemini/Groq/OpenRouter/Mistral exigem chave própria de conta elegível. Não é necessário PC para essas ligações diretas. A app não distribui chaves nem ativa pagamentos.
 
 Para ferramentas locais, descompacte o pacote PC, execute `Instalar-e-Iniciar.cmd`, faça o emparelhamento TLS/token e descubra os modelos em Modelos. Windows deve estar numa rede privada. Ollama, pesos, ComfyUI e nós têm instalações/licenças próprias; o script oferece opções explícitas. **127.0.0.1 no Android só é apropriado para um serviço no telemóvel ou para USB com adb reverse já ativo.**
 
@@ -39,7 +41,7 @@ cd android
 gradle :core:test :app:assembleDebug :app:lintDebug
 ```
 
-O CI também instala o APK em emulador API 30 e executa descoberta e pergunta real ao serviço público (apenas texto de teste). Essa prova não é substituída por mocks.
+O CI também instala o APK em emulador API 30, testa descoberta/pergunta real, persistência e TLS, e executa o fluxo de geração multimédia com serviços públicos. Os resultados e falhas estão no relatório; as provas reais não são substituídas por mocks. A cena inicial do teste multimédia é uma fixture identificada, separada do teste real de chat.
 
 Servidor:
 

@@ -1,0 +1,47 @@
+[
+  {
+    "provider": "Pollinations Classic",
+    "kind": "image",
+    "started": 1793018950.9904506,
+    "test": "REAL_NETWORK",
+    "file": "media-research/pollinations.jpg",
+    "bytes": 48875,
+    "ok": true
+  },
+  {
+    "provider": "black-forest-labs/FLUX.1-schnell",
+    "kind": "image",
+    "started": 1793018951.856152,
+    "test": "REAL_NETWORK",
+    "api": "/infer",
+    "files": [
+      "media-research/black-forest-labs_FLUX.1-schnell-0.webp"
+    ],
+    "result": "('/tmp/gradio/fc6b5450596f3524b0b193d118f79d6a321b00f4209cdcfaf63665ce42fd4515/image.webp', 31001)",
+    "ok": true
+  },
+  {
+    "provider": "Lightricks/ltx-video-distilled",
+    "kind": "video",
+    "started": 1793018958.2869017,
+    "test": "REAL_NETWORK",
+    "api": "/text_to_video",
+    "files": [
+      "media-research/Lightricks_ltx-video-distilled-0.mp4"
+    ],
+    "result": "({'video': '/tmp/gradio/1da1a02d26735d9f05bd030919b96efd6d685f95ea526dd179675f3f3bb50d91/output_10647.mp4', 'subtitles': None}, 31001)",
+    "ok": true
+  },
+  {
+    "provider": "Lightricks/ltx-video-distilled image-to-video",
+    "kind": "video",
+    "started": 1793018961.653671,
+    "test": "REAL_NETWORK",
+    "api": "/image_to_video",
+    "files": [
+      "media-research/Lightricks_ltx-video-distilled-0.mp4"
+    ],
+    "result": "({'video': '/tmp/gradio/68974366c6c11287e0b0ff0a5b0999c625f47d79379a286617f261624aaa3fbd/output_10647.mp4', 'subtitles': None}, 31001)",
+    "ok": true
+  }
+]
