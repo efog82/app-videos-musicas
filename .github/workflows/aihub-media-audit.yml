@@ -1,0 +1,31 @@
+name: AI Hub — auditoria pública multimédia
+on:
+  pull_request:
+    paths: ['ai-hub-studio/scripts/audit_media_033.py', '.github/workflows/aihub-media-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  research:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    defaults:
+      run:
+        working-directory: ai-hub-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install httpx gradio_client pillow
+      - name: Disponibilidade real e gerações limitadas
+        env:
+          AIHUB_CF_ACCOUNT: ${{ secrets.AIHUB_CF_ACCOUNT }}
+          AIHUB_CF_TOKEN: ${{ secrets.AIHUB_CF_TOKEN }}
+          AIHUB_CF_FREE: ${{ vars.AIHUB_CF_FREE }}
+        run: python scripts/audit_media_033.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: AI-Hub-auditoria-multimedia-v033
+          path: ai-hub-studio/media-audit-033/
