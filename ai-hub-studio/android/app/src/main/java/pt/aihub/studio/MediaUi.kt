@@ -46,7 +46,7 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
         if(state in listOf("queued","running"))TextButton(onClick=onCancel){Text("Cancelar pedido")}
     }}
 }
-@Composable fun AssetCard(asset:JSONObject,onOpen:()->Unit,onAnimate:()->Unit,onSave:()->Unit,onShare:()->Unit,onProject:@Composable()->Unit,onDelete:()->Unit) {
+@Composable fun AssetCard(asset:JSONObject,onOpen:()->Unit,onAnimate:()->Unit,onVariation:()->Unit,onSave:()->Unit,onShare:()->Unit,onProject: @Composable () -> Unit,onDelete:()->Unit) {
     val image=asset.optString("kindMedia")=="image"
     Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)){
         Box(Modifier.fillMaxWidth().height(240.dp).clickable(onClick=onOpen),contentAlignment=Alignment.Center){
@@ -57,6 +57,7 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
             Text(asset.optString("prompt"),maxLines=3,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.bodyMedium)
             Text(mediaProviders.firstOrNull{it.id==asset.optString("provider")}?.title?:asset.optString("provider"),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.secondary)
             Row(Modifier.horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically){
+                if(image)TextButton(onClick=onVariation){Icon(Icons.Outlined.Refresh,null,Modifier.size(17.dp));Text("Variar descrição",Modifier.padding(start=5.dp))}
                 if(image)TextButton(onClick=onAnimate){Icon(Icons.Outlined.MotionPhotosOn,null,Modifier.size(17.dp));Text("Animar imagem",Modifier.padding(start=5.dp))}
                 IconButton(onClick=onSave){Icon(Icons.Outlined.Download,"Guardar na galeria")}
                 IconButton(onClick=onShare){Icon(Icons.Outlined.Share,"Partilhar ficheiro")}
@@ -71,14 +72,14 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
     frame?.let{Image(bitmap=it.asImageBitmap(),contentDescription="Pré-visualização do vídeo gerado",modifier=Modifier.fillMaxSize().testTag("asset-video-thumbnail"))}?:CircularProgressIndicator(Modifier.size(24.dp))
 }
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun MediaViewer(asset:JSONObject,onDismiss:()->Unit,onSave:()->Unit,onShare:()->Unit,onAnimate:()->Unit){
+@Composable fun MediaViewer(asset:JSONObject,onDismiss:()->Unit,onSave:()->Unit,onShare:()->Unit,onAnimate:()->Unit,onVariation:()->Unit){
     var scale by remember{mutableFloatStateOf(1f)};var x by remember{mutableFloatStateOf(0f)};var y by remember{mutableFloatStateOf(0f)}
     Dialog(onDismissRequest=onDismiss,properties=DialogProperties(usePlatformDefaultWidth=false)){
         Surface(Modifier.fillMaxSize(),color=Color.Black){Column{
             TopAppBar(title={Text(if(asset.optString("kindMedia")=="video")"Vídeo gerado" else "Imagem gerada",color=Color.White)},navigationIcon={IconButton(onClick=onDismiss){Icon(Icons.Outlined.Close,"Fechar pré-visualização",tint=Color.White)}},colors=TopAppBarDefaults.topAppBarColors(containerColor=Color.Black),actions={IconButton(onClick=onSave,modifier=Modifier.testTag("viewer-save")){Icon(Icons.Outlined.Download,"Guardar na galeria",tint=Color.White)};IconButton(onClick=onShare){Icon(Icons.Outlined.Share,"Partilhar ficheiro",tint=Color.White)}})
             if(asset.optString("kindMedia")=="video")MediaPlayer(asset.getString("path"),Modifier.weight(1f).fillMaxWidth())
             else Box(Modifier.weight(1f).fillMaxWidth().pointerInput(Unit){detectTransformGestures{_,pan,zoom,_->scale=(scale*zoom).coerceIn(1f,8f);x=if(scale>1)x+pan.x else 0f;y=if(scale>1)y+pan.y else 0f}},contentAlignment=Alignment.Center){AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem em ecrã completo com zoom",modifier=Modifier.fillMaxSize().graphicsLayer(scaleX=scale,scaleY=scale,translationX=x,translationY=y))}
-            if(asset.optString("kindMedia")=="image")Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.SpaceEvenly){TextButton(onClick={scale=1f;x=0f;y=0f}){Text("Repor zoom")};Button(onClick=onAnimate,modifier=Modifier.testTag("viewer-animate")){Icon(Icons.Outlined.MotionPhotosOn,null);Text("Animar imagem",Modifier.padding(start=8.dp))}}
+            if(asset.optString("kindMedia")=="image")Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.SpaceEvenly){TextButton(onClick=onVariation){Text("Nova variação")};TextButton(onClick={scale=1f;x=0f;y=0f}){Text("Repor zoom")};Button(onClick=onAnimate,modifier=Modifier.testTag("viewer-animate")){Icon(Icons.Outlined.MotionPhotosOn,null);Text("Animar imagem",Modifier.padding(start=8.dp))}}
         }}
     }
 }
@@ -96,7 +97,7 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
     val choices=mediaProviders.filter{it.kind==request.kind&&(request.reference==null||it.reference)}
     var provider by remember(request){mutableStateOf(choices.first())}
     var prompt by remember(request){mutableStateOf(request.prompt)}
-    var aspect by remember{mutableStateOf("16:9")};var resolution by remember{mutableStateOf(if(request.kind=="video")"448" else "512")}
+    var aspect by remember{mutableStateOf("16:9")};var resolution by remember{mutableStateOf(if(request.kind=="video")"512" else "512")}
     var model by remember(provider){mutableStateOf(provider.models.first())}
     var count by remember{mutableStateOf("1")};var duration by remember{mutableStateOf("2")};var seed by remember{mutableStateOf(kotlin.random.Random.nextInt(1,Int.MAX_VALUE-10).toString())}
     var experimental by remember(provider){mutableStateOf(false)}
@@ -107,14 +108,16 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
             item{SelectField("Fornecedor",provider.id,choices.map{it.id to it.title}){id->choices.firstOrNull{it.id==id}?.let{provider=it}};Text(provider.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary)}
             item{SelectField("Modelo",model,provider.models.map{it to it}){model=it};Text(if(provider.tested||vm.vault.get("media_test_${provider.id}").isNotBlank())"Geração real previamente confirmada; disponibilidade atual sujeita a quota" else "Experimental — ainda não testado com geração real nesta conta",style=MaterialTheme.typography.labelSmall)}
             item{OutlinedTextField(prompt,{prompt=it},label={Text("Descrição da geração")},modifier=Modifier.fillMaxWidth(),minLines=3,maxLines=8)}
-            item{SelectField("Proporção",aspect,listOf("1:1","4:5","9:16","16:9").map{it to it}){aspect=it};SelectField("Lado maior / resolução solicitada",resolution,(if(request.kind=="video")listOf("448","704","1024") else listOf("512","768","1024")).map{it to "$it px"}){resolution=it}}
+            if(!(provider.id=="cloudflare"&&model.contains("flux")))item{SelectField("Proporção",aspect,listOf("1:1","4:5","9:16","16:9").map{it to it}){aspect=it};SelectField("Lado maior / resolução solicitada",resolution,(if(request.kind=="video")listOf("512","768","1024") else listOf("512","768","1024")).map{it to "$it px"}){resolution=it}}
+            if(provider.id=="cloudflare"&&model.contains("flux"))item{Text("Este endpoint não publica controlos de resolução/proporção. É usada a saída padrão do modelo.",style=MaterialTheme.typography.bodySmall)}
             item{Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedTextField(seed,{seed=it},label={Text("Seed")},modifier=Modifier.weight(1f));if(request.kind=="image")OutlinedTextField(count,{count=it},label={Text("N.º imagens (1–10)")},modifier=Modifier.weight(1f))else OutlinedTextField(duration,{duration=it},label={Text("Duração (0,3–8,5 s)")},modifier=Modifier.weight(1f))}}
             if(!provider.tested&&vm.vault.get("media_test_${provider.id}").isBlank())item{LabeledSwitch("Autorizar teste desta integração experimental",experimental){experimental=it}}
             item{LabeledSwitch("Autorizar envio ao fornecedor escolhido",vm.consent){vm.consent=it;vm.vault.set("remote_consent",it.toString())}}
             item{Button(enabled=prompt.isNotBlank()&&vm.consent&&(provider.tested||experimental||vm.vault.get("media_test_${provider.id}").isNotBlank()),onClick={runCatching{
-                val size=resolution.toInt();val ratio=when(aspect){"1:1"->1.0;"4:5"->.8;"9:16"->9.0/16;else->16.0/9}
-                var width=if(ratio>=1)size else (size*ratio).toInt();var height=if(ratio>=1)(size/ratio).toInt() else size
-                if(request.kind=="video"){width=(width/32*32).coerceAtLeast(256);height=(height/32*32).coerceAtLeast(256)}
+                val size=resolution.toInt();val (a,b)=when(aspect){"1:1"->1 to 1;"4:5"->4 to 5;"9:16"->9 to 16;else->16 to 9}
+                val multiple=if(request.kind=="video")32 else if(provider.id=="pollinations-image")1 else 8
+                val factor=(size/maxOf(a,b)/multiple*multiple).coerceAtLeast(multiple)
+                val width=a*factor;val height=b*factor
                 require(seed.toLong() in 0..Int.MAX_VALUE.toLong()-10){"Seed inválido"};val seconds=duration.toDouble();require(seconds in .3..8.5){"Duração fora da capacidade do modelo"}
                 vm.generate(provider,prompt,width,height,seed.toLong(),seconds,model,request.reference,if(request.kind=="image")count.toInt() else 1,request.origin);onSubmit()
             }.onFailure{vm.status=connectionMessage(it)}},modifier=Modifier.fillMaxWidth().testTag("submit-generation")){Icon(Icons.Outlined.AutoAwesome,null);Text(if(request.kind=="image")"Criar imagem" else "Criar vídeo",Modifier.padding(start=8.dp))};Text("Não ativa subscrições, compras de créditos ou faturação. As filas e quotas são do fornecedor. Em LTX as dimensões são ajustadas a múltiplos de 32; a proporção pode aproximar-se.",style=MaterialTheme.typography.labelSmall)}

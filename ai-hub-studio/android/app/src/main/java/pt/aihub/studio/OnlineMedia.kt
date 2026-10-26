@@ -57,7 +57,9 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                     require(model in p.models){"Modelo não autorizado na lista gratuita desta integração"}
                     require(vault.get("media_cloudflare_key").isNotBlank()){ "Token Cloudflare em falta" }
                     progress("A gerar no Cloudflare Workers AI…")
-                    val body=JSONObject().put("prompt",prompt).put("width",width).put("height",height).put("seed",seed).put("num_steps",if(model.contains("flux"))4 else 20)
+                    require(prompt.length<=2048){"O modelo Cloudflare aceita no máximo 2048 caracteres"}
+                    val body=JSONObject().put("prompt",prompt).put("seed",seed)
+                    if(model.contains("flux"))body.put("steps",4) else body.put("width",width).put("height",height).put("num_steps",20)
                     http.call(p.base+"/accounts/$account/ai/run/$model","POST",auth(p),body.toString().toByteArray()){c->
                         if(c.contentType.orEmpty().contains("json")) {
                             val result=JSONObject(c.inputStream.bufferedReader().use{it.readText()})

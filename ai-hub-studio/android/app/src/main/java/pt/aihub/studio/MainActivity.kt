@@ -83,7 +83,7 @@ class MainActivity:ComponentActivity() {
     fun animate(asset:JSONObject){generation=GenerationRequest("video",asset.optString("prompt"),asset.optString("conversation"),asset)}
     if(vm.settings)ProviderSettings(vm,onDismiss={vm.settings=false})
     generation?.let{request->GenerationSheet(vm,request,onDismiss={generation=null},onSubmit={generation=null})}
-    expanded?.let{asset->MediaViewer(asset,onDismiss={expanded=null},onSave={save(asset)},onShare={shareAsset(context,asset)},onAnimate={expanded=null;animate(asset)})}
+    expanded?.let{asset->MediaViewer(asset,onDismiss={expanded=null},onSave={save(asset)},onShare={shareAsset(context,asset)},onAnimate={expanded=null;animate(asset)},onVariation={expanded=null;requestImage(asset.optString("prompt"),asset.optString("conversation"))})}
     ModalNavigationDrawer(drawerState=drawer,drawerContent={ModalDrawerSheet {
         Text("As tuas conversas",Modifier.padding(24.dp),style=MaterialTheme.typography.titleLarge)
         FilledTonalButton(onClick={vm.newChat();scope.launch{drawer.close()}},modifier=Modifier.fillMaxWidth().padding(horizontal=16.dp)){Icon(Icons.Outlined.Add,null);Text("Nova conversa",Modifier.padding(start=8.dp))}
@@ -118,7 +118,7 @@ class MainActivity:ComponentActivity() {
                         item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column{Text(if(kind=="image")"Imagina. Cria. Explora." else "Dá movimento às tuas ideias.",style=MaterialTheme.typography.titleLarge);Text("Geração online · sem PC",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)};FilledIconButton(onClick={generation=GenerationRequest(kind,"","",null)}){Icon(Icons.Outlined.Add,if(kind=="image")"Gerar imagem" else "Gerar vídeo")}}}
                         items(vm.tasks.filter{it.optString("kind")==kind&&it.optString("state")!="done"}.take(10),key={it.getString("id")}){TaskCard(it,onCancel={vm.cancelTask(it.getString("id"))})}
                         if(vm.assets.none{it.optString("kindMedia")==kind})item {EmptyCard(if(kind=="image")"A tua galeria começa com uma ideia" else "Cria um clip a partir de texto ou de uma imagem","Os resultados aparecem aqui e ficam guardados no Android.",Icons.Outlined.AutoAwesome)}
-                        items(vm.assets.filter{it.optString("kindMedia")==kind},key={it.getString("id")}){asset->AssetCard(asset,onOpen={expanded=asset},onAnimate={animate(asset)},onSave={save(asset)},onShare={shareAsset(context,asset)},onProject={AssetProjectMenu(vm,asset)},onDelete={vm.deleteAsset(asset)})}
+                        items(vm.assets.filter{it.optString("kindMedia")==kind},key={it.getString("id")}){asset->AssetCard(asset,onOpen={expanded=asset},onAnimate={animate(asset)},onVariation={requestImage(asset.optString("prompt"),asset.optString("conversation"))},onSave={save(asset)},onShare={shareAsset(context,asset)},onProject={AssetProjectMenu(vm,asset)},onDelete={vm.deleteAsset(asset)})}
                     }
                 }
                 else->ProjectsScreen(vm,onAsset={expanded=it})
@@ -147,8 +147,8 @@ class MainActivity:ComponentActivity() {
         items(vm.messages.indices.toList()){index->val message=vm.messages[index];val user=message.optString("role")=="user"
             val asset=message.optString("assetId").takeIf{it.isNotBlank()}?.let{id->vm.assets.firstOrNull{it.optString("id")==id}}
             Column(Modifier.fillMaxWidth(),horizontalAlignment=if(user)Alignment.End else Alignment.Start){
-                if(asset!=null)AssetCard(asset,onOpen={onOpen(asset)},onAnimate={onAnimate(asset)},onSave={onSave(asset)},onShare={shareAsset(context,asset)},onProject={AssetProjectMenu(vm,asset)},onDelete={vm.deleteAsset(asset)})
-                else if(user)Surface(shape=RoundedCornerShape(22.dp,22.dp,6.dp,22.dp),color=MaterialTheme.colorScheme.surfaceVariant,modifier=Modifier.widthIn(max=600.dp)){Column(Modifier.padding(15.dp)){Text(message.optString("content"));message.optJSONArray("attachments")?.objects()?.forEach{Text("📎 "+it.optString("name"),style=MaterialTheme.typography.labelSmall)}}}
+                if(asset!=null)AssetCard(asset,onOpen={onOpen(asset)},onAnimate={onAnimate(asset)},onVariation={onImage(asset.optString("prompt"))},onSave={onSave(asset)},onShare={shareAsset(context,asset)},onProject={AssetProjectMenu(vm,asset)},onDelete={vm.deleteAsset(asset)})
+                else if(user)Surface(shape=RoundedCornerShape(22.dp,22.dp,6.dp,22.dp),color=MaterialTheme.colorScheme.surfaceVariant,modifier=Modifier.widthIn(max=600.dp)){Column(Modifier.padding(15.dp)){Text(message.optString("content"));message.optJSONArray("attachments")?.objects()?.forEach{Row(verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.AttachFile,null,Modifier.size(14.dp));Text(it.optString("name"),style=MaterialTheme.typography.labelSmall)}}}}
                 else {
                     Row(verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.AutoAwesome,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.primary);Text("AI Hub",Modifier.padding(start=8.dp),style=MaterialTheme.typography.labelMedium)}
                     MarkdownBody(message.optString("content"),vm.dark)
