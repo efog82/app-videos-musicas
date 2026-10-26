@@ -44,11 +44,22 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
         try {
             when {
                 p.id=="pollinations-image"->{
-                    while(System.currentTimeMillis()<nextClassic){progress("A aguardar quota pública (${(nextClassic-System.currentTimeMillis())/1000+1}s)");delay(1000)}
-                    progress("A gerar imagem no Pollinations…")
-                    nextClassic=System.currentTimeMillis()+46000
-                    http.file(p.base+"/prompt/"+enc(prompt)+"?width=$width&height=$height&seed=$seed&safe=true",file)
-                    nextClassic=System.currentTimeMillis()+46000
+                    // Only retry the same idempotent public image GET; never switch to paid access.
+                    for(attempt in 0..2) {
+                        while(System.currentTimeMillis()<nextClassic){progress("A aguardar quota pública (${(nextClassic-System.currentTimeMillis())/1000+1}s)");delay(1000)}
+                        progress("A gerar imagem no Pollinations… (tentativa ${attempt+1}/3)")
+                        nextClassic=System.currentTimeMillis()+46000
+                        try {
+                            http.file(p.base+"/prompt/"+enc(prompt)+"?width=$width&height=$height&seed=$seed&safe=true",file)
+                            nextClassic=System.currentTimeMillis()+46000
+                            break
+                        } catch(e:AiHttpFailure) {
+                            if(e.status!=503 || attempt==2 || (e.retryAfter?:0)>120)throw e
+                            val waitSeconds=maxOf(46L,(e.retryAfter?:46L)+1)
+                            nextClassic=maxOf(nextClassic,System.currentTimeMillis()+waitSeconds*1000)
+                            progress("Pollinations temporariamente indisponível; a respeitar a espera pública antes de repetir o mesmo pedido.")
+                        }
+                    }
                 }
                 p.id=="cloudflare"->{
                     require(vault.get("media_cloudflare_free")=="true"){"Confirme uma conta Workers Free sem faturação, nas definições"}
