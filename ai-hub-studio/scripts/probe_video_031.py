@@ -10,6 +10,7 @@ image=Image.new('RGB',(832,480),'#86bed4');d=ImageDraw.Draw(image);d.polygon([(0
 prompt='Cinematic wide shot of a paper boat drifting slowly across a turquoise mountain lake, gentle water ripples, soft golden sunlight, natural movement, camera slowly tracking sideways, no text'
 repos=['Lightricks/LTX-2-3','Wan-AI/Wan2.2-S2V','Wan-AI/Wan2.1','zai-org/CogVideoX-5B-Space','kaidjuric/cogvideox-5b-text-to-video','zerogpu-aoti/wan2-2-fp8da-aoti','zerogpu-aoti/wan2-2-fp8da-aoti-faster','multimodalart/wan2-2-fast','multimodalart/wan2-2-fast-i2v','Fhwang/wan2-video-generation']
 if os.getenv('AIHUB_VIDEO_PROBE_MODE')=='official-cog':repos=['zai-org/CogVideoX-5B-Space']
+if os.getenv('AIHUB_VIDEO_PROBE_MODE')=='wan-remaining-budget':repos=['zerogpu-aoti/wan2-2-fp8da-aoti-faster']
 results=[]
 def inspect(repo):
  r={'repo':repo,'test':'REAL_API_DISCOVERY','started':time.time()}
@@ -42,6 +43,7 @@ def generate(repo,reference=False):
   if not name:raise ValueError('No compatible public endpoint: '+','.join(endpoints))
   r['endpoint']=name
   values={'prompt':prompt,'negative_prompt':'blurry, distorted, low quality, watermark','seed':310031,'randomize_seed':False,'width':832,'height':480,'duration':5,'duration_seconds':5,'num_frames':81,'frame_rate':16,'fps':16,'aspect_ratio':'16:9','image_input':None,'video_input':None,'image':None,'input_image':None,'image_path':None,'input_image_path':None,'audio':None,'audio_path':None,'input_audio':None,'seed_value':310031,'scale_status':False,'rife_status':False}
+  if os.getenv('AIHUB_VIDEO_PROBE_MODE')=='wan-remaining-budget':values.update(duration_seconds=2.0,steps=4)
   if reference:
    for key in ['image','input_image','image_path','input_image_path','start_image']:values[key]=handle_file(str(out/'reference-fixture.png'))
   args={}
