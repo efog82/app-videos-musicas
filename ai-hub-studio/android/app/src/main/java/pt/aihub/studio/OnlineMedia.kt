@@ -1,6 +1,7 @@
 package pt.aihub.studio
 
 import android.content.Context
+import pt.aihub.core.videoFailure
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -24,7 +25,7 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
         var prefix="/gradio_api"
         val metadata=try{http.json(p.base+prefix+"/info",headers=auth(p))}catch(e:AiHttpFailure){if(e.status!=404)throw e;prefix="";http.json(p.base+"/info",headers=auth(p))}
         val named=metadata.optJSONObject("named_endpoints")?:error("O Space não publica uma API de geração")
-        val endpoint=((if(p.kind=="video")listOf(if(reference)"/image_to_video" else "/text_to_video") else emptyList())+listOf("/"+p.api,"/generate","/infer")).distinct().firstOrNull{named.has(it)}?:error("API alterada: nenhum endpoint de geração compatível foi publicado")
+        val endpoint=((if(p.kind=="video")listOf(if(reference)"/image_to_video" else "/text_to_video") else emptyList())+listOf("/"+p.api,"/generate_video","/generate","/infer")).distinct().firstOrNull{named.has(it)}?:error("API alterada: nenhum endpoint de geração compatível foi publicado")
         val config=http.json(p.base+"/config",headers=auth(p))
         return ApiInfo(prefix,endpoint,named.getJSONObject(endpoint).getJSONArray("parameters").objects(),config)
     }
@@ -38,6 +39,7 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
     suspend fun generate(p:MediaProvider,prompt:String,width:Int,height:Int,seed:Long,duration:Double,model:String,reference:File?,progress:(String)->Unit):File {
         require(prompt.isNotBlank()){ "Escreva uma descrição" }
         require(reference==null||p.reference){"Este fornecedor não aceita imagens de referência; escolha um compatível"}
+        if(p.kind=="video")p.video.validate(duration,reference!=null)
         cancellation=null;cancellationSupported=false
         val directory=File(context.filesDir,"media").apply{mkdirs()}
         val file=File(directory,UUID.randomUUID().toString()+if(p.kind=="video")".mp4" else ".jpg")
@@ -85,6 +87,10 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                     val api=info(p,reference!=null)
                     val values=mutableMapOf<String,Any?>("prompt" to prompt,"negative_prompt" to "blurry, distorted, low quality","seed" to seed,"seed_ui" to seed,"randomize_seed" to false,"width" to width,"height" to height,"num_inference_steps" to 4,
                         "input_image_filepath" to null,"input_video_filepath" to null,"height_ui" to height,"width_ui" to width,"mode" to if(reference==null)"text-to-video" else "image-to-video","duration_ui" to duration,"ui_frames_to_use" to 9,"ui_guidance_scale" to 3.0,"improve_texture_flag" to false)
+                    if(p.id=="hf-wan22-i2v") {
+                        values["input_image"]=null;values["steps"]=4;values["duration_seconds"]=duration
+                        values["guidance_scale"]=1.0;values["guidance_scale_2"]=1.0
+                    }
                     if(reference!=null) {
                         progress("A enviar a referência para o Space selecionado…")
                         val boundary="AIHub"+UUID.randomUUID()
@@ -92,7 +98,9 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                             write("--$boundary\r\nContent-Disposition: form-data; name=\"files\"; filename=\"reference.png\"\r\nContent-Type: application/octet-stream\r\n\r\n".toByteArray());write(reference.readBytes());write("\r\n--$boundary--\r\n".toByteArray())
                         }.toByteArray()
                         val paths=http.call(p.base+api.prefix+"/upload","POST",auth(p),bytes,"multipart/form-data; boundary=$boundary"){JSONArray(it.inputStream.bufferedReader().use{r->r.readText()})}
-                        values["input_image_filepath"]=JSONObject().put("path",paths.getString(0)).put("orig_name","reference.png").put("meta",JSONObject().put("_type","gradio.FileData"))
+                        val uploaded=JSONObject().put("path",paths.getString(0)).put("orig_name","reference.png").put("meta",JSONObject().put("_type","gradio.FileData"))
+                        values["input_image_filepath"]=uploaded
+                        if(p.id=="hf-wan22-i2v")values["input_image"]=uploaded
                     }
                     val data=JSONArray()
                     for(parameter in api.parameters) {
@@ -129,7 +137,7 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                                     "process_starts","process_generating"->progress("O fornecedor está a processar o pedido…")
                                     "process_completed"->{
                                         val result=message.optJSONObject("output")?:error("O Space terminou sem resposta")
-                                        require(message.optBoolean("success",false)&&!result.has("error")){"O Space recusou/falhou a geração: "+result.optString("error","Resposta sem sucesso").take(500)}
+                                        require(message.optBoolean("success",false)&&result.isNull("error")){videoFailure(result.optString("error","Resposta sem sucesso"))}
                                         completed=result.getJSONArray("data").toString();break
                                     }
                                     "close_stream"->break
@@ -155,6 +163,8 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                 android.graphics.BitmapFactory.decodeFile(file.path,options)
                 require(options.outWidth>0&&options.outHeight>0){"O resultado não é uma imagem válida (pode ser uma página de erro)"}
             } else {
+                val header=ByteArray(12);java.io.RandomAccessFile(file,"r").use{it.readFully(header)}
+                require(String(header,4,4,Charsets.US_ASCII)=="ftyp"){"O fornecedor não devolveu um contentor MP4; o ficheiro não será exportado com uma extensão incorreta"}
                 val retriever=android.media.MediaMetadataRetriever()
                 try {retriever.setDataSource(file.path);require((retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()?:0)>0){"O resultado não é um vídeo válido"}}finally{retriever.release()}
             }

@@ -114,7 +114,7 @@ class StudioModel(app:Application):AndroidViewModel(app) {
         require(count in 1..10){"Escolha entre 1 e 10 pedidos por lote para controlar a quota"}
         repeat(count){offset->
             val id=UUID.randomUUID().toString();val project=currentProject
-            saveTask(JSONObject().put("id",id).put("provider",provider.id).put("kind",provider.kind).put("prompt",prompt).put("state","queued").put("message","Em espera na fila da aplicação").put("project",project).put("created",System.currentTimeMillis()).put("conversation",origin).put("reference",reference?.optString("id")?:""))
+            saveTask(JSONObject().put("id",id).put("provider",provider.id).put("kind",provider.kind).put("prompt",prompt).put("state","queued").put("message","Em espera na fila da aplicação").put("project",project).put("created",System.currentTimeMillis()).put("conversation",origin).put("reference",reference?.optString("id")?:"").put("durationRequested",duration).put("widthRequested",width).put("heightRequested",height).put("seed",seed+offset).put("model",model))
             workers[id]=viewModelScope.launch {
                 try {
                     queue.withLock {
@@ -147,7 +147,17 @@ class StudioModel(app:Application):AndroidViewModel(app) {
         val dir=File(getApplication<Application>().filesDir,"media").apply{mkdirs()};val file=File(dir,"$hash.$extension")
         if(!file.exists())input.copyTo(file)
         if(removeOriginal&&input.path!=file.path)input.delete()
-        return dbSaveAsset(JSONObject().put("path",file.path).put("kindMedia",kind).put("mime",mime).put("prompt",prompt).put("provider",provider).put("project",project).put("conversation",origin).put("seed",seed).put("hash",hash).put("created",System.currentTimeMillis()))
+        val metadata=JSONObject()
+        if(kind=="video") {
+            val retriever=android.media.MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(file.path)
+                metadata.put("durationMs",retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()?:0)
+                metadata.put("width",retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()?:0)
+                metadata.put("height",retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()?:0)
+            }finally{retriever.release()}
+        }
+        return dbSaveAsset(metadata.put("path",file.path).put("kindMedia",kind).put("mime",mime).put("prompt",prompt).put("provider",provider).put("project",project).put("conversation",origin).put("seed",seed).put("hash",hash).put("created",System.currentTimeMillis()))
     }
     private fun dbSaveAsset(value:JSONObject):JSONObject{val id=db.save("asset",value);return JSONObject(value.toString()).put("id",id)}
     fun deleteAsset(asset:JSONObject){db.delete(asset.getString("id"));if(db.list("asset").none{it.optString("path")==asset.optString("path")})File(asset.optString("path")).delete();refresh()}

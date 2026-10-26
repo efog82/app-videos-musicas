@@ -11,6 +11,7 @@ mkdir -p app/build/reports/androidTests
 adb exec-out run-as pt.aihub.studio cat /sdcard/Android/data/pt.aihub.studio/files/live-provider.txt > app/build/reports/androidTests/live-provider.txt
 adb exec-out run-as pt.aihub.studio cat /sdcard/Android/data/pt.aihub.studio/files/pc-tls.txt > app/build/reports/androidTests/pc-tls.txt
 adb exec-out run-as pt.aihub.studio cat files/v3-video-preview.png > app/build/reports/androidTests/v3-video-preview.png
+adb exec-out run-as pt.aihub.studio cat files/wan-v031-test.json > app/build/reports/androidTests/wan-v031-test.json
 adb shell input keyevent 4
 adb exec-out screencap -p > app/build/reports/androidTests/aihub-screen.png
 exit "$TEST_RESULT"

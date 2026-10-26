@@ -75,6 +75,7 @@ def generate(repo,reference=False):
  r['elapsed']=round(time.time()-r['started'],2);return r
 # One generation per selected Space, with ordinary public quota and no auth workaround.
 selected=[(r['repo'],r['repo'].endswith('aoti-faster')) for r in results if r.get('ok') and r['repo'] in ['Lightricks/LTX-2-3','kaidjuric/cogvideox-5b-text-to-video','zai-org/CogVideoX-5B-Space','zerogpu-aoti/wan2-2-fp8da-aoti','zerogpu-aoti/wan2-2-fp8da-aoti-faster','multimodalart/wan2-2-fast','multimodalart/wan2-2-fast-i2v']]
+if os.getenv('AIHUB_VIDEO_PROBE_MODE')=='discovery-only':selected=[]
 generations=[]
 with ThreadPoolExecutor(max_workers=3) as pool:
  for f in as_completed([pool.submit(generate,repo,ref) for repo,ref in selected]):

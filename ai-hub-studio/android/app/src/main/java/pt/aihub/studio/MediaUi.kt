@@ -35,7 +35,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 
-data class GenerationRequest(val kind:String,val prompt:String,val origin:String,val reference:JSONObject?)
+data class GenerationRequest(val kind:String,val prompt:String,val origin:String,val reference:JSONObject?,val providerId:String="",val seconds:Double?=null)
 
 @Composable fun EmptyCard(title:String,subtitle:String,icon:androidx.compose.ui.graphics.vector.ImageVector) {OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){Icon(icon,null,Modifier.size(32.dp),tint=MaterialTheme.colorScheme.primary);Text(title,style=MaterialTheme.typography.titleMedium);Text(subtitle,style=MaterialTheme.typography.bodyMedium)}}}
 @Composable fun TaskCard(task:JSONObject,onCancel:()->Unit,onRetry:(()->Unit)?=null){
@@ -50,13 +50,14 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
 @Composable fun AssetCard(asset:JSONObject,onOpen:()->Unit,onAnimate:()->Unit,onVariation:()->Unit,onSave:()->Unit,onShare:()->Unit,onProject: @Composable () -> Unit,onDelete:()->Unit) {
     val image=asset.optString("kindMedia")=="image"
     var imageReady by remember(asset.optString("path")){mutableStateOf(false)}
-    Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)){
+    Card(Modifier.fillMaxWidth().testTag("asset-card-${asset.optString("id")}"),shape=RoundedCornerShape(22.dp)){
         Box(Modifier.fillMaxWidth().height(240.dp).clickable(onClick=onOpen).testTag(if(image)"asset-image" else "asset-video").semantics{if(image)stateDescription=if(imageReady)"Imagem preparada" else "A carregar imagem"},contentAlignment=Alignment.Center){
             if(image)AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem gerada",modifier=Modifier.fillMaxSize(),onSuccess={imageReady=true})else VideoThumbnail(asset)
             if(!image)FilledIconButton(onClick=onOpen){Icon(Icons.Outlined.PlayArrow,"Reproduzir vídeo")}
         }
         Column(Modifier.padding(horizontal=14.dp,vertical=8.dp)){
             Text(asset.optString("prompt"),maxLines=3,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.bodyMedium)
+            if(!image&&asset.optLong("durationMs")>0)Text("${asset.optInt("width")}×${asset.optInt("height")} · ${String.format(java.util.Locale.forLanguageTag("pt-PT"),"%.2f",asset.optLong("durationMs")/1000.0)} s · MP4",style=MaterialTheme.typography.labelSmall)
             Text(mediaProviders.firstOrNull{it.id==asset.optString("provider")}?.title?:asset.optString("provider"),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.secondary)
             Row(Modifier.horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically){
                 if(image)TextButton(onClick=onVariation){Icon(Icons.Outlined.Refresh,null,Modifier.size(17.dp));Text("Variar descrição",Modifier.padding(start=5.dp))}
@@ -97,24 +98,27 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun GenerationSheet(vm:StudioModel,request:GenerationRequest,onDismiss:()->Unit,onSubmit:()->Unit) {
-    val choices=mediaProviders.filter{it.kind==request.kind&&(request.reference==null||it.reference)}
-    var provider by remember(request){mutableStateOf(choices.first())}
+    var reference by remember(request){mutableStateOf(request.reference)}
+    val choices=mediaProviders.filter{it.kind==request.kind&&(reference==null||it.reference)&&(request.kind!="video"||reference!=null||it.video.textToVideo)}
+    var provider by remember(request,reference?.optString("id")){mutableStateOf(choices.firstOrNull{it.id==request.providerId}?:choices.first())}
     var prompt by remember(request){mutableStateOf(request.prompt)}
     var aspect by remember{mutableStateOf("16:9")};var resolution by remember{mutableStateOf(if(request.kind=="video")"512" else "512")}
     var model by remember(provider){mutableStateOf(provider.models.first())}
-    var count by remember{mutableStateOf("1")};var duration by remember{mutableStateOf("2")};var seed by remember{mutableStateOf(kotlin.random.Random.nextInt(1,Int.MAX_VALUE-10).toString())}
+    var count by remember{mutableStateOf("1")};var duration by remember(provider){mutableStateOf((request.seconds?.takeIf{provider.id==request.providerId&&it in provider.video.minSeconds..provider.video.maxSeconds}?:provider.video.defaultSeconds).toString())};var seed by remember{mutableStateOf(kotlin.random.Random.nextInt(1,Int.MAX_VALUE-10).toString())}
     var experimental by remember(provider){mutableStateOf(false)}
     val sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)
     ModalBottomSheet(onDismissRequest=onDismiss,sheetState=sheetState){
         LazyColumn(Modifier.fillMaxWidth().heightIn(max=700.dp).imePadding().testTag("generation-form"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-            item{Text(if(request.kind=="image")"Gerar imagem" else if(request.reference==null)"Gerar vídeo" else "Animar imagem",style=MaterialTheme.typography.headlineSmall)}
-            request.reference?.let{asset->item{AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem de referência",modifier=Modifier.fillMaxWidth().height(130.dp))}}
+            item{Text(if(request.kind=="image")"Gerar imagem" else if(reference==null)"Gerar vídeo" else "Animar imagem",style=MaterialTheme.typography.headlineSmall)}
+            if(request.kind=="video")item{SelectField("Imagem de referência",reference?.optString("id").orEmpty(),listOf("" to "Sem imagem · texto para vídeo")+vm.assets.filter{it.optString("kindMedia")=="image"}.map{it.getString("id") to it.optString("prompt").take(75)}){id->reference=vm.assets.firstOrNull{it.optString("id")==id}}}
+            reference?.let{asset->item{AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem de referência",modifier=Modifier.fillMaxWidth().height(130.dp))}}
             item{SelectField("Fornecedor",provider.id,choices.map{it.id to it.title}){id->choices.firstOrNull{it.id==id}?.let{provider=it}};Text(provider.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary)}
             item{SelectField("Modelo",model,provider.models.map{it to it}){model=it};Text(if(provider.tested||vm.vault.get("media_test_${provider.id}").isNotBlank())"Geração real previamente confirmada; disponibilidade atual sujeita a quota" else "Experimental — ainda não testado com geração real nesta conta",style=MaterialTheme.typography.labelSmall)}
             item{OutlinedTextField(prompt,{prompt=it},label={Text("Descrição da geração")},modifier=Modifier.fillMaxWidth(),minLines=3,maxLines=8)}
-            if(!(provider.id=="cloudflare"&&model.contains("flux")))item{SelectField("Proporção",aspect,listOf("1:1","4:5","9:16","16:9").map{it to it}){aspect=it};SelectField("Lado maior / resolução solicitada",resolution,(if(request.kind=="video")listOf("512","768","1024") else listOf("512","768","1024")).map{it to "$it px"}){resolution=it}}
+            if(provider.video.referenceDeterminesSize&&request.kind=="video")item{Text("Formato e resolução seguem a imagem de referência. O fornecedor ajusta as dimensões para 480–832 px, podendo recortar. Use uma imagem vertical para vídeo vertical.",style=MaterialTheme.typography.bodySmall)}
+            if(!(provider.id=="cloudflare"&&model.contains("flux"))&&!(request.kind=="video"&&provider.video.referenceDeterminesSize))item{SelectField("Proporção",aspect,listOf("1:1","4:5","9:16","16:9").map{it to it}){aspect=it};SelectField("Lado maior / resolução solicitada",resolution,(if(request.kind=="video")listOf("512","768","1024") else listOf("512","768","1024")).map{it to "$it px"}){resolution=it}}
             if(provider.id=="cloudflare"&&model.contains("flux"))item{Text("Este endpoint não publica controlos de resolução/proporção. É usada a saída padrão do modelo.",style=MaterialTheme.typography.bodySmall)}
-            item{Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedTextField(seed,{seed=it},label={Text("Seed")},modifier=Modifier.weight(1f));if(request.kind=="image")OutlinedTextField(count,{count=it},label={Text("N.º imagens (1–10)")},modifier=Modifier.weight(1f))else OutlinedTextField(duration,{duration=it},label={Text("Duração (0,3–8,5 s)")},modifier=Modifier.weight(1f))}}
+            item{Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedTextField(seed,{seed=it},label={Text("Seed")},modifier=Modifier.weight(1f));if(request.kind=="image")OutlinedTextField(count,{count=it},label={Text("N.º imagens (1–10)")},modifier=Modifier.weight(1f))else OutlinedTextField(duration,{duration=it},label={Text(if(provider.id=="hf-wan22-i2v")"Duração (0,5–5 s)" else "Duração (0,3–8,5 s)")},modifier=Modifier.weight(1f))}}
             if(!provider.tested&&vm.vault.get("media_test_${provider.id}").isBlank())item{LabeledSwitch("Autorizar teste desta integração experimental",experimental){experimental=it}}
             item{LabeledSwitch("Autorizar envio ao fornecedor escolhido",vm.consent){vm.consent=it;vm.vault.set("remote_consent",it.toString())}}
             item{Button(enabled=prompt.isNotBlank()&&vm.consent&&(provider.tested||experimental||vm.vault.get("media_test_${provider.id}").isNotBlank()),onClick={runCatching{
@@ -122,8 +126,8 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
                 val multiple=if(request.kind=="video")32 else if(provider.id=="pollinations-image")1 else 8
                 val factor=(size/maxOf(a,b)/multiple*multiple).coerceAtLeast(multiple)
                 val width=a*factor;val height=b*factor
-                require(seed.toLong() in 0..Int.MAX_VALUE.toLong()-10){"Seed inválido"};val seconds=duration.toDouble();require(seconds in .3..8.5){"Duração fora da capacidade do modelo"}
-                vm.generate(provider,prompt,width,height,seed.toLong(),seconds,model,request.reference,if(request.kind=="image")count.toInt() else 1,request.origin);onSubmit()
+                require(seed.toLong() in 0..Int.MAX_VALUE.toLong()-10){"Seed inválido"};val seconds=duration.toDouble();if(request.kind=="video")provider.video.validate(seconds,reference!=null)
+                vm.generate(provider,prompt,width,height,seed.toLong(),seconds,model,reference,if(request.kind=="image")count.toInt() else 1,request.origin.ifBlank{reference?.optString("conversation").orEmpty()});onSubmit()
             }.onFailure{vm.status=connectionMessage(it)}},modifier=Modifier.fillMaxWidth().testTag("submit-generation")){Icon(Icons.Outlined.AutoAwesome,null);Text(if(request.kind=="image")"Criar imagem" else "Criar vídeo",Modifier.padding(start=8.dp))};Text("Não ativa subscrições, compras de créditos ou faturação. As filas e quotas são do fornecedor. Em LTX as dimensões são ajustadas a múltiplos de 32; a proporção pode aproximar-se.",style=MaterialTheme.typography.labelSmall)}
             item{Spacer(Modifier.height(30.dp))}
         }
@@ -146,4 +150,4 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
     }
 }
 
-fun requestFromTask(task:JSONObject,assets:List<JSONObject>)=GenerationRequest(task.optString("kind"),task.optString("prompt"),task.optString("conversation"),assets.firstOrNull{it.optString("id")==task.optString("reference")})
+fun requestFromTask(task:JSONObject,assets:List<JSONObject>)=GenerationRequest(task.optString("kind"),task.optString("prompt"),task.optString("conversation"),assets.firstOrNull{it.optString("id")==task.optString("reference")},task.optString("provider"),task.optDouble("durationRequested").takeIf{it.isFinite()})
