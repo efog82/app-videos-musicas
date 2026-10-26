@@ -73,7 +73,7 @@ class MainActivity: ComponentActivity() {
         var token by remember { mutableStateOf(vault.get("token")) }
         var direct by remember { mutableStateOf(vault.get("mode_v2") != "pc") }
         var ollama by remember { mutableStateOf(vault.get("ollama").ifBlank { "http://127.0.0.1:11434" }) }
-        val api = remember { Api({ vault.get("base") }, { vault.get("token") }, fingerprint={vault.get("fingerprint")}) }
+        val api = remember { Api({ vault.get("base") }, { vault.get("token") }, fingerprint={vault.get("fingerprint")},isPc=true) }
         val ai = remember { DirectAi(vault) }
         var aiProvider by remember { mutableStateOf(vault.get("ai_provider").ifBlank {"pollinations"}) }
         var aiKey by remember { mutableStateOf(vault.get("key_$aiProvider")) }
@@ -244,7 +244,7 @@ class MainActivity: ComponentActivity() {
             LazyColumn(Modifier.weight(1f),state=contentState,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 if(tab in listOf("Configuração","Modelos")) {
                     item { Title("Ligar uma inteligência artificial", "1. Sem API: Pollinations público ou modelos locais. 2. Com API: chave gratuita própria, ligação direta sem PC. 3. Servidor PC: Ollama/ComfyUI/FFmpeg por Wi-Fi com TLS ou USB. As interfaces oficiais no navegador são um modo separado.") }
-                    item { Toggle("Ligar diretamente às IAs (sem servidor PC)",direct,{direct=it;model="";vault.set("mode_v2",if(it)"direct" else "pc")}) }
+                    item { Toggle("Ligar diretamente às IAs (sem servidor PC)",direct,{direct=it;model="";models=if(it)ai.cachedModels() else emptyList();vault.set("mode_v2",if(it)"direct" else "pc")}) }
                     if(direct) {
                         item { Choice("Fornecedor de IA",aiProvider,aiProviders.map{it.id to it.name},{id->if(id.isNotBlank()){aiProvider=id;aiKey=vault.get("key_$id");freePlan=vault.get("free_$id")=="true";vault.set("ai_provider",id)}}) }
                         item { Text(ai.provider(aiProvider).info); if(!ai.provider(aiProvider).local&&aiProvider!="pollinations") {Field(aiKey,{aiKey=it},"Chave API gratuita",secret=true);Toggle("Confirmo plano gratuito / créditos limitados, sem faturação automática",freePlan,{freePlan=it})} }
@@ -417,7 +417,7 @@ class MainActivity: ComponentActivity() {
                     if(!direct) {
                         item { OutlinedButton(enabled=!busy,onClick={action("Ler fornecedores predefinidos") {presetRows=api.list("/v1/presets")}}) {Text("Carregar fornecedores predefinidos")} }
                         item { Choice("Predefinição",providerPreset,presetRows.map {it.getString("name") to it.getString("name")},{ value -> providerPreset=value;presetRows.firstOrNull{it.getString("name")==value}?.let {providerName=it.getString("name");providerType=it.getString("type");providerUrl=it.getString("url");providerLocal=it.getBoolean("local")} }) }
-                        item { Toggle("Conta gratuita sem faturação no fornecedor PC",freePlan,{freePlan=it});Field(providerName,{providerName=it},"Nome do fornecedor");Choice("Protocolo",providerType,listOf("ollama","openai","gemini","comfy").map{it to it},{providerType=it});Field(providerUrl,{providerUrl=it},"Endpoint base");Field(providerKey,{providerKey=it},"Chave API (opcional)",secret=true);Toggle("Servidor local autorizado",providerLocal,{providerLocal=it}) }
+                        item { Toggle("Autorizar envio do PC ao fornecedor externo",remote,{remote=it});Toggle("Conta gratuita sem faturação no fornecedor PC",freePlan,{freePlan=it});Field(providerName,{providerName=it},"Nome do fornecedor");Choice("Protocolo",providerType,listOf("ollama","openai","gemini","comfy").map{it to it},{providerType=it});Field(providerUrl,{providerUrl=it},"Endpoint base");Field(providerKey,{providerKey=it},"Chave API (opcional)",secret=true);Toggle("Servidor local autorizado",providerLocal,{providerLocal=it}) }
                         item { Button(enabled=!busy&&providerName.isNotBlank(),onClick={action("Guardar fornecedor no PC") {
                             api.obj("/v1/providers","POST",JSONObject().put("name",providerName).put("type",providerType).put("url",providerUrl).put("local",providerLocal).put("key",providerKey).put("free_plan",freePlan));providerKey="";providers=api.list("/v1/providers")
                         }}) {Text("Adicionar fornecedor")} }
@@ -430,7 +430,7 @@ class MainActivity: ComponentActivity() {
                         items(workflows) { w -> Card { Column(Modifier.fillMaxWidth().padding(12.dp)){Text("${w.getString("name")} · ${w.getString("modality")}");Text(w.optString("requirements"));Text("Parâmetros ligados: ${w.optJSONObject("bindings")?.keys()?.asSequence()?.joinToString() ?: "nenhum"}",style=MaterialTheme.typography.bodySmall);TextButton(enabled=!busy,onClick={action("Remover workflow") {api.request("/v1/workflows/${w.getString("id")}","DELETE");workflows=api.list("/v1/workflows")}}){Text("Remover")}}} }
                         item { OutlinedButton(enabled=!busy,onClick={action("Consultar limites publicados") {taskDetail=api.request("/v1/quotas")}}) {Text("Consultar limites e quotas")} }
                     }
-                    items(models) { m -> Card { Column(Modifier.fillMaxWidth().padding(12.dp)) {Text(m.getString("id"));Text(if(m.optBoolean("free")) "Local ou preço zero confirmado na descoberta" else "Preço / quota não confirmados — bloqueado por defeito",style=MaterialTheme.typography.bodySmall);Text(m.optJSONArray("capabilities")?.toString().orEmpty(),color=MaterialTheme.colorScheme.secondary)} } }
+                    items(models) { m -> Card { Column(Modifier.fillMaxWidth().padding(12.dp)) {Text(m.getString("id"));Text(if(m.optBoolean("free")) "Local ou preço zero confirmado na descoberta" else if(direct) "Quota gratuita dependente da conta; teste de resposta obrigatório" else "Preço / quota não confirmados — bloqueado por defeito",style=MaterialTheme.typography.bodySmall);Text(m.optJSONArray("capabilities")?.toString().orEmpty(),color=MaterialTheme.colorScheme.secondary)} } }
                     item { Text("Serviços oficiais no navegador (sessão e termos próprios):")
                         listOf("Gemini" to "https://gemini.google.com/","Hugging Face" to "https://huggingface.co/spaces","OpenRouter" to "https://openrouter.ai/").forEach {(name,url)->TextButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,android.net.Uri.parse(url)))}) {Text("Abrir $name")}}
                     }
@@ -449,7 +449,7 @@ class MainActivity: ComponentActivity() {
                 }
                 if(tab=="Definições") {
                     item { Title("Ligação e privacidade", "O PC executa os modelos e o FFmpeg. As chaves dos fornecedores são guardadas no cofre do PC; o token de emparelhamento fica cifrado no Android.") }
-                    item { Field(base,{base=it},"URL do servidor AI Hub PC");Field(token,{token=it},"Token de emparelhamento",secret=true);Toggle("IA direta no Android (sem servidor AI Hub)",direct,{direct=it});Field(ollama,{ollama=it},"URL do Ollama direto") }
+                    item { Field(base,{base=it},"URL do servidor AI Hub PC");Field(token,{token=it},"Token de emparelhamento",secret=true);Toggle("IA direta no Android (sem servidor AI Hub)",direct,{direct=it;model="";models=if(it)ai.cachedModels() else emptyList()});Field(ollama,{ollama=it},"URL do Ollama direto") }
                     item { Toggle("Comparei esta impressão digital com a mostrada no PC",fingerprintConfirmed,{fingerprintConfirmed=it});Field(fingerprint,{fingerprint=it;fingerprintConfirmed=false},"Impressão digital TLS do PC (SHA256)");Field(pairingJson,{pairingJson=it},"Ou colar conteúdo de emparelhamento.json",3)
                         OutlinedButton(onClick={runCatching{val j=JSONObject(pairingJson);base=j.getString("url");token=j.getString("token");fingerprint=j.getString("fingerprint");status="Compare a impressão digital com o PC antes de guardar"}.onFailure{status="JSON de emparelhamento inválido"}}){Text("Ler dados de emparelhamento")}
                     }

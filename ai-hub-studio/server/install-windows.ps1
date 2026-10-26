@@ -38,7 +38,7 @@ $admin=([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity
 if ($admin) {
     if(!(Get-NetFirewallRule -DisplayName 'AI Hub Studio TLS LAN' -ErrorAction SilentlyContinue)) {
         New-NetFirewallRule -DisplayName 'AI Hub Studio TLS LAN' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8787 -LocalAddress $BindAddress -RemoteAddress LocalSubnet -Profile Private | Out-Null
-    }
+    } else { Get-NetFirewallRule -DisplayName 'AI Hub Studio TLS LAN' | Get-NetFirewallAddressFilter | Set-NetFirewallAddressFilter -LocalAddress $BindAddress -RemoteAddress LocalSubnet }
     if(!(Get-NetFirewallRule -DisplayName 'AI Hub Studio mDNS LAN' -ErrorAction SilentlyContinue)) {
         New-NetFirewallRule -DisplayName 'AI Hub Studio mDNS LAN' -Direction Inbound -Action Allow -Protocol UDP -LocalPort 5353 -RemoteAddress LocalSubnet -Profile Private -Program $Python | Out-Null
     }

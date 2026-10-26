@@ -9,11 +9,12 @@ import java.net.URI
 import java.net.URL
 import java.io.InputStream
 
-class Api(private val base: () -> String, private val token: () -> String, private val headers: () -> Map<String,String> = { emptyMap() }, private val fingerprint: () -> String = { "" }) {
+class Api(private val base: () -> String, private val token: () -> String, private val headers: () -> Map<String,String> = { emptyMap() }, private val fingerprint: () -> String = { "" }, private val isPc:Boolean=false) {
     private fun connection(path: String, method: String): HttpURLConnection {
         require(base().isNotBlank()) { "Servidor PC não configurado. Use a configuração inicial ou introduza o IP privado do PC; não use 127.0.0.1 por Wi-Fi." }
         val url = URL(base().trimEnd('/') + path)
         require(url.protocol == "https" || (url.protocol == "http" && url.host in listOf("127.0.0.1","localhost","10.0.2.2"))) { "Utilize HTTPS; HTTP só é permitido no acesso local por USB/emulador" }
+        if(isPc){val host=java.net.InetAddress.getByName(url.host);require(host.isLoopbackAddress||host.isSiteLocalAddress){"O servidor PC deve usar um endereço privado da rede local"}}
         require(url.userInfo == null) { "Não coloque credenciais no URL" }
         return (url.openConnection() as HttpURLConnection).apply {
             requestMethod = method; connectTimeout = 10000; readTimeout = 180000; instanceFollowRedirects = false
@@ -28,7 +29,7 @@ class Api(private val base: () -> String, private val token: () -> String, priva
             val parsed=runCatching{JSONObject(raw)}.getOrNull()
             val detail=parsed?.optJSONObject("error")?.optString("message") ?: parsed?.optString("detail") ?: ""
             val reason=when(c.responseCode){
-                401->if(c.url.path.startsWith("/v1/")&&token().isNotBlank())"Token de emparelhamento inválido; copie o token do PC" else "Chave API inválida ou em falta; teste a chave nas definições do fornecedor"
+                401->if(isPc)"Token de emparelhamento inválido; copie o token do PC" else "Chave API inválida ou em falta; teste a chave nas definições do fornecedor"
                 403->"Acesso recusado: permissões da chave, modelo ou região não autorizados"
                 402,429->"Quota gratuita esgotada ou limite de frequência. Aguarde ${c.getHeaderField("Retry-After") ?: "o próximo período"}; não há pagamento automático"
                 404->"URL/API incorreto ou modelo não instalado/disponível. Atualize a descoberta de modelos"

@@ -5,7 +5,7 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 class LiveProviderTest {
-    @Test fun realAnonymousProviderDiscoversModelAndAnswersQuestion() = runBlocking {
+    @Test fun realAnonymousProviderDiscoversModelAndAnswersQuestion(): Unit = runBlocking {
         org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("liveProviders")=="true")
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val vault=Vault(context)
