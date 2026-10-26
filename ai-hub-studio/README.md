@@ -1,9 +1,11 @@
-# AI Hub Studio — estúdio multimédia v0.3.1
+# AI Hub Studio — estúdio multimédia v0.3.2
 
 Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente é preservada noutra pasta.
 
 **Nova interface Chat/Imagens/Vídeos/Projetos, com geração direta e pré-visualização dentro da app antes de guardar na galeria.** O relatório separa os testes Android dos testes externos e das integrações experimentais. Não é uma declaração de que toda a plataforma original está concluída.
 
+- [Novidades e utilização da v0.3.2](docs/ALTERACOES-v0.3.2.md)
+- [Testes e entrega da v0.3.2](docs/RELATORIO-v0.3.2.md)
 - [Configurar Wan 2.2 na v0.3.1](docs/CONFIGURACAO-v0.3.1.md)
 - [Investigação, testes reais e limites da v0.3.1](docs/RELATORIO-v0.3.1.md)
 - [Configurar a v0.3: chat, imagens e vídeos sem PC](docs/CONFIGURACAO-v0.3.md)
@@ -16,11 +18,11 @@ Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente �
 
 ## Download
 
-[APK desta versão](https://github.com/efog82/app-videos-musicas/actions/runs/40362560726/artifacts/12669841200) · [Pacote Windows](https://github.com/efog82/app-videos-musicas/actions/runs/40362560726/artifacts/12668593007) · [Execução/testes](https://github.com/efog82/app-videos-musicas/actions/runs/40362560726)
+[APK desta versão](https://github.com/efog82/app-videos-musicas/actions/runs/40402688948/artifacts/12689069202) · [Pacote Windows](https://github.com/efog82/app-videos-musicas/actions/runs/40402688948/artifacts/12688373949) · [Execução/testes](https://github.com/efog82/app-videos-musicas/actions/runs/40402688948)
 
-No GitHub: **Actions → AI Hub Studio — APK e testes → execução da v0.3.1 → Artifacts**.
+No GitHub: **Actions → AI Hub Studio — APK e testes → execução da v0.3.2 → Artifacts**.
 
-- **AI-Hub-Studio-APK**: ZIP com `AI-Hub-Studio-v0.3.1-debug.apk` e SHA256.
+- **AI-Hub-Studio-APK**: ZIP com `AI-Hub-Studio-v0.3.2-debug.apk` e SHA256.
 - **AI-Hub-Studio-PC-Windows**: ZIP com `Instalar-e-Iniciar.cmd`, servidor, scripts e documentação.
 - Relatórios separados para servidor, Android, emulador e rede real.
 

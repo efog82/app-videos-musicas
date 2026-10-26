@@ -1,0 +1,11 @@
+{
+  "test": "REAL_SYSTEM_PHOTO_PICKER",
+  "action": "android.provider.action.PICK_IMAGES",
+  "originalBytesPreserved": true,
+  "width": 361,
+  "height": 619,
+  "previewDisplayed": true,
+  "referenceDisplayed": true,
+  "adaptiveIcon": true,
+  "monochromeIcon": true
+}

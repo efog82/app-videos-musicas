@@ -1,0 +1,63 @@
+{
+  "base": "e38df4fb7dfe931d6c40245ec657b236c6508cc7",
+  "implementation": "5011523eeeb44585d552d75a2d67f70412aea9c0",
+  "changedPaths": [
+    ".github/workflows/ai-hub-studio.yml",
+    "ai-hub-studio/android/app/build.gradle.kts",
+    "ai-hub-studio/android/app/src/androidTest/java/pt/aihub/studio/WanVideoLiveTest.kt",
+    "ai-hub-studio/android/app/src/main/AndroidManifest.xml",
+    "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/MainActivity.kt",
+    "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/MediaUi.kt",
+    "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/OnlineMedia.kt",
+    "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/StudioModel.kt",
+    "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/WebTransport.kt",
+    "ai-hub-studio/android/ci-device-test.sh",
+    "ai-hub-studio/android/app/src/androidTest/java/pt/aihub/studio/GalleryPickerUiTest.kt",
+    "ai-hub-studio/android/app/src/androidTest/java/pt/aihub/studio/ImageLibraryTest.kt",
+    "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/ImageLibrary.kt",
+    "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/ReferenceUpload.kt",
+    "ai-hub-studio/android/app/src/main/res/drawable/ic_aihub_background.xml",
+    "ai-hub-studio/android/app/src/main/res/drawable/ic_aihub_foreground.xml",
+    "ai-hub-studio/android/app/src/main/res/drawable/ic_aihub_monochrome.xml",
+    "ai-hub-studio/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+    "ai-hub-studio/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml",
+    "ai-hub-studio/android/app/src/main/res/mipmap-anydpi-v33/ic_launcher.xml",
+    "ai-hub-studio/android/app/src/main/res/mipmap-anydpi-v33/ic_launcher_round.xml",
+    "ai-hub-studio/android/app/src/main/res/mipmap-anydpi/ic_launcher.xml",
+    "ai-hub-studio/android/app/src/main/res/mipmap-anydpi/ic_launcher_round.xml",
+    "ai-hub-studio/android/ci-picker-test.sh"
+  ],
+  "outsideAiHub": [],
+  "preserved": [
+    {
+      "path": "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/MediaProviders.kt",
+      "before": "ddbbba2a45b21bace223a5c10016eda37b3f4eb2",
+      "after": "ddbbba2a45b21bace223a5c10016eda37b3f4eb2",
+      "unchanged": true
+    },
+    {
+      "path": "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/DirectAi.kt",
+      "before": "090e87b2400712fffbaa51ab0c3e45f647857348",
+      "after": "090e87b2400712fffbaa51ab0c3e45f647857348",
+      "unchanged": true
+    },
+    {
+      "path": "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/ProviderSettings.kt",
+      "before": "b2d00d200fd0e0c326dae180f01d26a9b5349d50",
+      "after": "b2d00d200fd0e0c326dae180f01d26a9b5349d50",
+      "unchanged": true
+    },
+    {
+      "path": "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/LegacyActivity.kt",
+      "before": "1dcf5b412a363ab5e79bb831c96c879b64c34de5",
+      "after": "1dcf5b412a363ab5e79bb831c96c879b64c34de5",
+      "unchanged": true
+    },
+    {
+      "path": "ai-hub-studio/android/app/src/main/java/pt/aihub/studio/LocalData.kt",
+      "before": "c5a3721e1b0a5db90d39f0e610abe09de66e50a1",
+      "after": "c5a3721e1b0a5db90d39f0e610abe09de66e50a1",
+      "unchanged": true
+    }
+  ]
+}
