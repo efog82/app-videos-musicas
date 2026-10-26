@@ -17,6 +17,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -75,6 +76,13 @@ class MainActivity: ComponentActivity() {
         val api = remember { Api({ vault.get("base").ifBlank { "http://127.0.0.1:8787" } }, { vault.get("token") }) }
         val localApi = remember { Api({ vault.get("ollama").ifBlank { "http://127.0.0.1:11434" } }, { "" }) }
         var tab by remember { mutableStateOf("Chat") }
+        val contentState = rememberLazyListState()
+        val tabScroll = rememberScrollState()
+        DisposableEffect(db) { onDispose { db.close() } }
+        LaunchedEffect(tab) {
+            contentState.scrollToItem(0)
+            if (tab == "Chat") tabScroll.scrollTo(0)
+        }
         var busy by remember { mutableStateOf(false) }
         var status by remember { mutableStateOf("Configure a ligação nas Definições. Projetos e legendas locais funcionam sem rede.") }
         var providers by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -218,12 +226,12 @@ class MainActivity: ComponentActivity() {
                 Text("AI HUB STUDIO",style=MaterialTheme.typography.headlineSmall,color=violet)
                 Text("O seu espaço de criação com IA",style=MaterialTheme.typography.bodySmall)
             }
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(tabScroll).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 tabs.forEach { label -> FilterChip(selected=tab==label,onClick={tab=label},label={Text(label)}) }
             }
             if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             Text(status,Modifier.padding(horizontal=18.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary)
-            LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            LazyColumn(Modifier.weight(1f),state=contentState,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 if (tab in listOf("Chat","Programação")) {
                     item { Title(if(tab=="Chat") "Converse com os seus modelos" else "Assistente de programação", "As respostas ficam guardadas neste Android. O envio ao modelo segue as opções de privacidade abaixo.") }
                     item { Choice("Modelo (vazio = escolha automática)",model,models.map { it.getString("provider")+"|"+it.getString("id") to it.optString("name",it.getString("id")) },{ model=it }) }
