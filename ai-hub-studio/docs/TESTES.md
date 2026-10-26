@@ -16,6 +16,10 @@ O cliente ASGI de testes usa um timer curto para permitir notificações de thre
 
 ## Android
 
-Código inclui três testes JVM do domínio SRT/timeline. Compilação Kotlin/Compose, esses testes e lint estão configurados no workflow GitHub Actions. O ambiente local não dispõe de SDK/Gradle; não se considera compilação nem testes Android aprovados até obter a execução CI correspondente.
+Na execução GitHub Actions **40303478436**, commit **857f1a314cdac87494f880189bf45d50ffed44c5**, passaram a compilação Kotlin/Compose, os três testes JVM de SRT/timeline, o lint Android e a verificação de assinatura debug. O APK foi gerado e transferido; o SHA256 local coincide com o publicado pelo CI. O ambiente local não dispõe de SDK/Gradle: a compilação foi feita no runner GitHub, com JDK 17 e SDK 35.
 
-Ainda necessário: instalação em Android físico, navegação, Keystore, permissões, SAF, playback, TLS com CA local, USB reverse, ciclo de vida, desempenho e notificações. Não há emulador nem testes instrumentados nesta entrega.
+APK: `AI-Hub-Studio-v0.1.0-debug.apk`, 9 634 020 bytes. SHA256: `5b1f90052dc8f2bfe8a8d0e0284de7fcc3e755d9aac326bf2131b518477f9347`. O manifesto e DEX foram verificados como `pt.aihub.studio` / `MainActivity`, sem classes Sonora.
+
+Teste instrumentado de persistência de projeto offline em emulador Android API 30: em curso nesta execução.
+
+Ainda necessário: instalação em Android físico, navegação, Keystore, permissões, SAF, playback, TLS com CA local, USB reverse, ciclo de vida, desempenho e notificações. Não existe dispositivo físico disponível neste ambiente; o workflow inclui emulador e o teste instrumentado descrito acima.

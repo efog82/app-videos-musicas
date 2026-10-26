@@ -81,7 +81,8 @@ class Router:
             self.cooldowns[p['id']] = time.time() + delay
         if response.is_error or response.is_redirect:
             # Never expose request URLs, upstream error bodies or keys.
-            raise ProviderError(f"{p['name']}: HTTP {response.status_code}")
+            reason={401:'chave inválida ou em falta',403:'permissão/região/modelo recusado',404:'endpoint incorreto ou modelo não instalado',402:'quota gratuita indisponível; sem pagamento automático',429:'quota esgotada; respeite Retry-After',503:'serviço temporariamente indisponível'}.get(response.status_code,'serviço indisponível ou pedido recusado')
+            raise ProviderError(f"{p['name']}: HTTP {response.status_code} — {reason}")
         return response
 
     async def discover(self, p):
@@ -124,6 +125,8 @@ class Router:
             return False
         if p['local']:
             return True
+        if p.get('free_plan'):
+            return True
         if allow_metered:
             return True
         # Price validation is fresh and exact, never infer free from a model's name.
@@ -151,8 +154,9 @@ class Router:
     async def chat(self, req):
         candidates = req.get('candidates', [])
         if not candidates:
-            for c in self.store.list('catalog'):
-                candidates.extend({'provider':m['provider'], 'model':m['id']} for m in c['models'])
+            for c in self.store.list('modelcheck'):
+                if c.get('ok') and time.time()-c.get('observed',0)<1800:
+                    candidates.append({'provider':c['provider'],'model':c['model']})
         errors = []
         for candidate in candidates:
             try:
@@ -164,7 +168,9 @@ class Router:
                     errors.append(p['name'] + ': período de espera por quota')
                     continue
                 text = await self.one(p, candidate['model'], req['messages'])
+                self.store.put('modelcheck',{'provider':p['id'],'model':candidate['model'],'ok':True,'observed':time.time()},id='check:'+p['id']+':'+candidate['model'])
                 return {'text':text, 'model':candidate['model'], 'provider':p['name'], 'failover':errors}
             except (ProviderError, KeyError, ValueError, TypeError, IndexError) as exc:
+                self.store.put('modelcheck',{'provider':candidate.get('provider',''),'model':candidate.get('model',''),'ok':False,'observed':time.time()},id='check:'+candidate.get('provider','')+':'+candidate.get('model',''))
                 errors.append(str(exc) if isinstance(exc, ProviderError) else 'Resposta inválida ou configuração em falta')
         raise ProviderError('; '.join(errors) or 'Descubra modelos e configure um servidor local ou fornecedor autorizado')

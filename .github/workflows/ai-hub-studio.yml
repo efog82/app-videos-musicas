@@ -27,6 +27,13 @@ jobs:
       - run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
       - run: python -m pip install -r server/requirements.txt
       - name: Testar API, segurança, failover e FFmpeg
+        env:
+          AIHUB_NETWORK_TESTS: '1'
+          AIHUB_TEST_FREE_PLAN: ${{ vars.AIHUB_TEST_FREE_PLAN }}
+          AIHUB_GEMINI_KEY: ${{ secrets.AIHUB_GEMINI_KEY }}
+          AIHUB_GROQ_KEY: ${{ secrets.AIHUB_GROQ_KEY }}
+          AIHUB_OPENROUTER_KEY: ${{ secrets.AIHUB_OPENROUTER_KEY }}
+          AIHUB_MISTRAL_KEY: ${{ secrets.AIHUB_MISTRAL_KEY }}
         run: python -m unittest discover -s server/tests -v 2>&1 | tee server-tests.txt
         shell: bash -eo pipefail {0}
       - uses: actions/upload-artifact@v4
@@ -56,13 +63,17 @@ jobs:
           gradle-version: '8.10.2'
       - name: Instalar SDK 35
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: aihub-debug-signing-v2
       - name: Compilar, testar e analisar Android
         run: gradle :core:test :app:assembleDebug :app:lintDebug --stacktrace --no-daemon
       - name: Verificar assinatura e preparar download
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/AI-Hub-Studio-v0.1.0-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose dist/AI-Hub-Studio-v0.1.0-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/AI-Hub-Studio-v0.2.0-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose dist/AI-Hub-Studio-v0.2.0-debug.apk
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -113,3 +124,38 @@ jobs:
           path: |
             ai-hub-studio/android/app/build/reports/androidTests/
             ai-hub-studio/android/app/build/outputs/androidTest-results/
+
+  windows:
+    name: Scripts Windows e servidor
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ai-hub-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validar sintaxe dos scripts Windows
+        shell: pwsh
+        run: |
+          Get-ChildItem server -Filter '*.ps1' | ForEach-Object {
+            $parseErrors=$null
+            $tokens=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$parseErrors)
+            if ($parseErrors.Count) { $parseErrors | Format-List; throw 'Script PowerShell inválido' }
+          }
+      - run: python -m pip install -r server/requirements.txt
+      - name: Testar servidor e TLS no Windows
+        env:
+          AIHUB_NETWORK_TESTS: '1'
+        run: python -m unittest discover -s server/tests -v
+      - name: Preparar instalador e servidor para download
+        shell: pwsh
+        run: |
+          Compress-Archive -Path server,docs,README.md,Instalar-e-Iniciar.cmd -DestinationPath AI-Hub-Studio-PC-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AI-Hub-Studio-PC-Windows
+          path: ai-hub-studio/AI-Hub-Studio-PC-Windows.zip

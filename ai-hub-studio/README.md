@@ -1,88 +1,53 @@
-# AI Hub Studio
+# AI Hub Studio — correção funcional v0.2.0
 
-Aplicação Android nativa Kotlin/Jetpack Compose e servidor PC Python. Este projeto é independente da Sonora existente na pasta `android` da raiz do repositório.
+Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente é preservada noutra pasta.
 
-**Estado: implementação inicial em validação. Não corresponde ainda à totalidade da plataforma universal pedida.** Não contém pesos de IA, quotas gratuitas garantidas, nem interfaces que fingem produzir IA. Leia [funcionalidades e limites](docs/INTEGRACOES.md) e [testes](docs/TESTES.md).
+**O objetivo desta atualização é conseguir ligar, descobrir e usar uma IA real.** Não é uma declaração de que toda a plataforma original está concluída.
 
-## Obter o APK
+- [Configurar Android, fornecedores gratuitos e PC](docs/CONFIGURACAO-v0.2.md)
+- [Auditoria: causas, correções e dependências](docs/AUDITORIA-v0.2.md)
+- [Integrações e limitações da plataforma](docs/INTEGRACOES.md)
+- [Workflows ComfyUI](docs/WORKFLOWS.md)
+- [Relatório desta atualização](docs/RELATORIO-v0.2.md)
 
-No GitHub, abra **Actions → AI Hub Studio — APK e testes → execução concluída → Artifacts → AI-Hub-Studio-APK**. Descompacte o ZIP e instale `AI-Hub-Studio-v0.1.0-debug.apk`. O artefacto só existe se a compilação terminar com êxito; pode exigir sessão GitHub. É uma compilação de desenvolvimento, com assinatura de teste gerada pelo runner; futuras compilações podem exigir desinstalar a anterior. Não é uma versão de produção assinada. Não instale os APK da Sonora pensando que são o AI Hub.
+## Download
 
-## PC Windows
+No GitHub: **Actions → AI Hub Studio — APK e testes → execução da v0.2.0 → Artifacts**.
 
-Requer Python 3.11+ e FFmpeg/ffprobe no PATH. Ollama, ComfyUI e pesos instalam-se separadamente, segundo os seus termos.
+- **AI-Hub-Studio-APK**: ZIP com `AI-Hub-Studio-v0.2.0-debug.apk` e SHA256.
+- **AI-Hub-Studio-PC-Windows**: ZIP com `Instalar-e-Iniciar.cmd`, servidor, scripts e documentação.
+- Relatórios separados para servidor, Android, emulador e rede real.
 
-```powershell
-cd ai-hub-studio
-powershell -ExecutionPolicy Bypass -File server/start-windows.ps1
-```
+É uma assinatura de desenvolvimento, não de produção. A v0.1.0 usava uma chave efémera do runner: para instalar esta atualização pode ser necessário exportar os dados que pretenda guardar e desinstalar a anterior. O novo CI guarda a chave debug em cache para melhorar continuidade; cache não substitui assinatura de produção e pode ser eliminado.
 
-O script cria um ambiente virtual local, instala as dependências e arranca apenas em `127.0.0.1:8787`. O token é criado em `%USERPROFILE%\.aihub-studio\pairing-token.txt`. Copie-o para Definições na app. Não o envie a terceiros nem o publique. Os ficheiros, histórico e cofre ficam em `%USERPROFILE%\.aihub-studio`.
+## Caminho mais curto
 
-Linux/macOS:
+Abra Configuração, escolha uma IA, autorize envio e prima **Descobrir e testar IA**. Pollinations Classic permite pedidos públicos sem chave quando há quota; Gemini/Groq/OpenRouter/Mistral exigem chave própria de conta elegível. Não é necessário PC para essas ligações diretas. A app não distribui chaves nem ativa pagamentos.
 
-```sh
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r server/requirements.txt
-python -m server.launch
-```
+Para ferramentas locais, descompacte o pacote PC, execute `Instalar-e-Iniciar.cmd`, faça o emparelhamento TLS/token e descubra os modelos em Modelos. Windows deve estar numa rede privada. Ollama, pesos, ComfyUI e nós têm instalações/licenças próprias; o script oferece opções explícitas. **127.0.0.1 no Android só é apropriado para um serviço no telemóvel ou para USB com adb reverse já ativo.**
 
-### Ligação Android–PC por USB
+O automático só considera modelos com resposta bem-sucedida recente. Uma lista de modelos, um HTTP 200 de health ou uma compilação aprovada não provam que a inferência funciona.
 
-Ative a depuração USB no Android, instale Android Platform Tools no PC e autorize o computador no telemóvel:
+## Compilação e testes
 
-```sh
-adb reverse tcp:8787 tcp:8787
-adb reverse tcp:11434 tcp:11434
-```
-
-Em **Definições**: servidor `http://127.0.0.1:8787`, token do ficheiro; prima **Guardar e testar**. Em **Modelos**, carregue predefinições, adicione Ollama e prima **Descobrir**. No Chat escolha um modelo. Instale previamente um modelo no Ollama (por exemplo `ollama pull qwen3:1.7b`, confirmando licença e requisitos atuais).
-
-**Chat direto:** ative o modo direto Ollama nas Definições e guarde `http://127.0.0.1:11434`; não precisa do servidor AI Hub para conversar. Descubra modelos em Modelos. USB deve ter o redirecionamento 11434 ativo. As restantes ferramentas PC continuam a exigir o servidor AI Hub.
-
-### Rede local com TLS
-
-Não há pesquisa automática da rede: a associação é explícita por endereço e token. Use uma CA privada de confiança, um certificado com SAN correspondente ao IP privado do PC e instale apenas essa CA no Android. O cliente verifica TLS; não existe opção para ignorar erros de certificado.
-
-```sh
-python -m server.launch --host 192.168.1.20 --cert servidor-cert.pem --key servidor-key.pem
-```
-
-Permita a porta 8787 apenas na rede privada na firewall Windows. O launcher rejeita bind global, `0.0.0.0` e LAN sem TLS. Não configure port forwarding no router. O ficheiro `vault.key` protege o cofre em repouso, mas fica na mesma conta local: proteção de disco/conta e ACL Windows continuam necessárias. As permissões POSIX de ficheiros não substituem ACL Windows.
-
-## Imagens e vídeo real com ComfyUI
-
-Instale ComfyUI e os nós/pesos de um workflow compatível. Teste primeiro no próprio ComfyUI. Exporte o workflow em **API format** e crie um manifesto conforme [WORKFLOWS.md](docs/WORKFLOWS.md). Importe esse JSON em **Modelos**, adicione o endpoint ComfyUI `http://127.0.0.1:8188` e descubra os nós. Nos separadores Imagens/Vídeo selecione servidor e workflow. O resultado é obtido pela API `/prompt`, `/history` e `/view`, guardado na biblioteca e exportável pelo seletor de ficheiros Android.
-
-Os controlos (prompt, seed, resolução, duração, imagem inicial/final, clip de entrada) só alteram campos explicitamente ligados no manifesto. Não existe conversão automática de parâmetros entre arquiteturas. Personagens consistentes, movimentos de membros, estilos, remoção de fundo, upscaling, Wan/LTX/AnimateDiff e música dependem dos workflows, nós e pesos; não são capacidades universalmente garantidas. Upload de imagem usa a API ComfyUI; áudio/vídeo de entrada depende de o loader aceitar ficheiros na pasta input.
-
-## Edição e som
-
-Importe ficheiros na biblioteca. No Editor selecione clips, início/duração e efeitos, organize a ordem, escolha música e SRT e exporte MP4. A edição usa FFmpeg no PC, 720p/1280 nas proporções disponíveis, H.264/AAC. O áudio original dos clips é removido; a faixa musical é a única faixa de áudio. O fade aplica entrada/saída por clip, não crossfade entre clips. O SRT requer FFmpeg com libass. A exportação não é vídeo generativo.
-
-O editor SRT local e o TTS Android funcionam sem servidor; as vozes precisam de estar instaladas e podem ter requisitos de rede próprios. Análise de energia/BPM e normalização exigem FFmpeg. Transcrição exige `/audio/transcriptions` compatível e um modelo explicitamente selecionado. Não há reconhecimento garantido de letras cantadas.
-
-## Custos e privacidade
-
-Os pedidos remotos estão bloqueados sem consentimento. No modo automático, apenas modelos locais ou com preços OpenRouter todos a zero, descobertos há menos de uma hora, são aceites por defeito. Os preços podem mudar entre descoberta e execução; **só um limite de faturação no fornecedor impede cobranças com garantia**. Nunca use chaves com faturação aberta se pretende risco financeiro zero. Gemini, Groq e outros exigem confirmar o plano: não se presume gratuitidade do nome ou publicidade de uma quota. A opção explícita de permitir custos não confirmados pode produzir cobranças. O router não contorna quotas, autenticação ou condições.
-
-As chaves de fornecedores são enviadas ao PC emparelhado e cifradas em repouso; não são devolvidas pela API. O token Android é cifrado com Keystore. A base SQLite de conteúdos não é cifrada. Backups Android estão desativados. Pedidos a serviços externos apenas ocorrem mediante configuração e consentimento. Workflows ComfyUI devem ser de fontes confiáveis: podem executar nós instalados no PC. Não importe workflows não revistos.
-
-## Compilar e testar
-
-JDK 17, Android SDK 35, Gradle 8.10.2:
+Android: JDK 17, SDK 35, Gradle 8.10.2:
 
 ```sh
 cd android
 gradle :core:test :app:assembleDebug :app:lintDebug
 ```
 
-Pode abrir a pasta `ai-hub-studio/android` no Android Studio e usar a instalação Gradle adequada. Não existe Gradle Wrapper binário incluído; o CI instala a versão fixa através de setup-gradle.
+O CI também instala o APK em emulador API 30 e executa descoberta e pergunta real ao serviço público (apenas texto de teste). Essa prova não é substituída por mocks.
+
+Servidor:
 
 ```sh
-# Na pasta ai-hub-studio
+python -m pip install -r server/requirements.txt
 python -m unittest discover -s server/tests -v
 ```
 
-A arquitetura separa o domínio portátil `:core`, o cliente `:app` e os módulos PC de armazenamento, fornecedores, media, workflows e tarefas. Ainda não existe cliente desktop/web.
+Testes com chaves reais usam `AIHUB_GEMINI_KEY`, `AIHUB_GROQ_KEY`, `AIHUB_OPENROUTER_KEY`, `AIHUB_MISTRAL_KEY` e exigem `AIHUB_TEST_FREE_PLAN=1`. Sem isso são **ignorados**, não aprovados. Podem selecionar o modelo com `AIHUB_GEMINI_MODEL`, etc. No GitHub use Secrets para chaves e a variável de confirmação da conta gratuita. Nunca publique valores.
+
+`AIHUB_NETWORK_TESTS=1` ativa o teste real de socket HTTPS/token no Linux e Windows do CI. A descoberta mDNS e a firewall no computador físico ainda exigem ensaio Android–PC nessa rede; runners não reproduzem a rede doméstica.
+
+Não há Gradle Wrapper binário incluído; Android Studio ou o CI instalam a versão Gradle indicada.

@@ -1,3 +1,5 @@
+> Atualização v0.2.0: consulte [a auditoria](AUDITORIA-v0.2.md), [a configuração](CONFIGURACAO-v0.2.md) e [o relatório atual](RELATORIO-v0.2.md). A matriz abaixo descreve a base v0.1.0; ligações diretas, descoberta LAN, TLS automático e agente textual foram acrescentados, sem remover os restantes componentes.
+
 # Funcionalidades, requisitos e limites
 
 | Componente | Implementação | Validação / dependência |

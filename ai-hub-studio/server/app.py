@@ -32,6 +32,7 @@ class ProviderIn(BaseModel):
     local: bool = False
     key: str | None = None
     enabled: bool = True
+    free_plan: bool = False
 
 
 class Message(BaseModel):
@@ -70,7 +71,7 @@ def create_app(root=None, token=None, transport=None):
     store = Store(root)
     router = Router(store, transport)
     jobs = Jobs(store)
-    app = FastAPI(title='AI Hub Studio PC',version='0.1.0',docs_url=None,redoc_url=None,openapi_url=None)
+    app = FastAPI(title='AI Hub Studio PC',version='0.2.0',docs_url=None,redoc_url=None,openapi_url=None)
     app.state.store, app.state.router, app.state.jobs = store,router,jobs
     attempts = {}
 
@@ -107,7 +108,7 @@ def create_app(root=None, token=None, transport=None):
 
     @app.get('/health')
     def health():
-        return {'service':'AI Hub Studio','version':'0.1.0','pairing_required':True}
+        return {'service':'AI Hub Studio','version':'0.2.0','pairing_required':True}
 
     protected = [Depends(auth)]
 
@@ -136,7 +137,7 @@ def create_app(root=None, token=None, transport=None):
         if p.type not in ('openai','ollama','gemini','comfy'):
             raise ValueError('Protocolo não suportado')
         url = validate_url(p.url,p.local)
-        item = store.put('provider',dict(name=p.name,type=p.type,url=url,local=p.local,enabled=p.enabled),id=id)
+        item = store.put('provider',dict(name=p.name,type=p.type,url=url,local=p.local,enabled=p.enabled,free_plan=p.free_plan),id=id)
         if p.key is not None:
             store.secret(item['id'],p.key)
         return item
@@ -159,9 +160,32 @@ def create_app(root=None, token=None, transport=None):
     async def discover(id:str):
         return await router.discover(store.get(id,'provider'))
 
+    @app.post('/v1/providers/{id}/test',dependencies=protected)
+    async def test_provider(id:str,body:dict):
+        p=store.get(id,'provider')
+        discovered=await router.discover(p)
+        if p['type']=='comfy':
+            return {'ok':True,'nodes':len(discovered.get('nodes',[])),'note':'API acessível; geração exige workflow e pesos instalados'}
+        model=body.get('model') or next((m['id'] for m in discovered.get('models',[]) if p['local'] or m.get('free') or p.get('free_plan')),None)
+        if not model: raise ValueError('Nenhum modelo elegível; confirme plano gratuito e permissões da chave')
+        result=await router.chat({'messages':[{'role':'user','content':'Responde apenas OK.'}], 'candidates':[{'provider':id,'model':model}], 'remote_consent':body.get('remote_consent',False),'allow_metered':False})
+        return dict(result,ok=True,test_kind='real-provider-response')
+
+    @app.get('/v1/diagnostics',dependencies=protected)
+    async def diagnostics():
+        output={'authenticated':True,'server':'AI Hub Studio','ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe')),'providers':[]}
+        for p in store.list('provider'):
+            try:
+                data=await asyncio.wait_for(router.discover(p),timeout=12)
+                output['providers'].append({'name':p['name'],'reachable':True,'models':len(data.get('models',[])),'nodes':len(data.get('nodes',[])),'reason':'API acessível; teste um modelo antes do automático'})
+            except (ProviderError,ValueError,KeyError,TimeoutError) as exc:
+                output['providers'].append({'name':p['name'],'reachable':False,'reason':str(exc)})
+        return output
+
     @app.get('/v1/models',dependencies=protected)
     def models():
-        return [m for c in store.list('catalog') for m in c['models']]
+        checks={(c['provider'],c['model']):c for c in store.list('modelcheck')}
+        return [dict(m,auto_eligible=bool((check:=checks.get((m['provider'],m['id']))) and check.get('ok') and time.time()-check['observed']<1800)) for c in store.list('catalog') for m in c['models'] if any(p['id']==m['provider'] and p.get('enabled',True) for p in store.list('provider'))]
 
     @app.get('/v1/quotas',dependencies=protected)
     def quotas():

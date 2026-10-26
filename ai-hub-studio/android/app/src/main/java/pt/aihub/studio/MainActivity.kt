@@ -41,7 +41,7 @@ import pt.aihub.core.Srt
 import java.io.File
 import java.util.Locale
 
-private val tabs = listOf("Chat", "Imagens", "Vídeo", "Música e Áudio", "Editor", "Programação", "Agentes", "Modelos", "Projetos", "Definições")
+private val tabs = listOf("Configuração", "Chat", "Imagens", "Vídeo", "Música e Áudio", "Editor", "Programação", "Agentes", "Modelos", "Projetos", "Definições")
 private val violet = Color(0xFFBBA3FF)
 
 class MainActivity: ComponentActivity() {
@@ -69,13 +69,22 @@ class MainActivity: ComponentActivity() {
         val scope = rememberCoroutineScope()
         val vault = remember { Vault(context) }
         val db = remember { LocalData(context) }
-        var base by remember { mutableStateOf(vault.get("base").ifBlank { "http://127.0.0.1:8787" }) }
+        var base by remember { mutableStateOf(vault.get("base")) }
         var token by remember { mutableStateOf(vault.get("token")) }
-        var direct by remember { mutableStateOf(vault.get("direct") == "true") }
+        var direct by remember { mutableStateOf(vault.get("mode_v2") != "pc") }
         var ollama by remember { mutableStateOf(vault.get("ollama").ifBlank { "http://127.0.0.1:11434" }) }
-        val api = remember { Api({ vault.get("base").ifBlank { "http://127.0.0.1:8787" } }, { vault.get("token") }) }
-        val localApi = remember { Api({ vault.get("ollama").ifBlank { "http://127.0.0.1:11434" } }, { "" }) }
-        var tab by remember { mutableStateOf("Chat") }
+        val api = remember { Api({ vault.get("base") }, { vault.get("token") }, fingerprint={vault.get("fingerprint")}) }
+        val ai = remember { DirectAi(vault) }
+        var aiProvider by remember { mutableStateOf(vault.get("ai_provider").ifBlank {"pollinations"}) }
+        var aiKey by remember { mutableStateOf(vault.get("key_$aiProvider")) }
+        var freePlan by remember { mutableStateOf(vault.get("free_$aiProvider")=="true") }
+        var fingerprint by remember { mutableStateOf(vault.get("fingerprint")) }
+        var fingerprintConfirmed by remember {mutableStateOf(false)}
+        var pairingJson by remember { mutableStateOf("") }
+        var lanServers by remember {mutableStateOf(emptyList<LanServer>())}
+        var diagnostic by remember {mutableStateOf("")}
+        var localResults by remember {mutableStateOf(db.list("local_file"))}
+        var tab by remember { mutableStateOf(if(vault.get("setup_v2")=="done") "Chat" else "Configuração") }
         val contentState = rememberLazyListState()
         val tabScroll = rememberScrollState()
         DisposableEffect(db) { onDispose { db.close() } }
@@ -84,16 +93,16 @@ class MainActivity: ComponentActivity() {
             if (tab == "Chat") tabScroll.scrollTo(0)
         }
         var busy by remember { mutableStateOf(false) }
-        var status by remember { mutableStateOf("Configure a ligação nas Definições. Projetos e legendas locais funcionam sem rede.") }
+        var status by remember { mutableStateOf("Escolha uma IA em Configuração: sem chave, chave gratuita ou PC local. Nenhum serviço é ligado sem autorização.") }
         var providers by remember { mutableStateOf(emptyList<JSONObject>()) }
-        var models by remember { mutableStateOf(emptyList<JSONObject>()) }
+        var models by remember { mutableStateOf(ai.cachedModels()) }
         var files by remember { mutableStateOf(emptyList<JSONObject>()) }
         var workflows by remember { mutableStateOf(emptyList<JSONObject>()) }
         var jobs by remember { mutableStateOf(emptyList<JSONObject>()) }
         var model by remember { mutableStateOf("") }
         var selectedProject by remember { mutableStateOf("") }
         var projects by remember { mutableStateOf(db.list("project")) }
-        var remote by remember { mutableStateOf(false) }
+        var remote by remember { mutableStateOf(vault.get("remote_consent")=="true") }
         var metered by remember { mutableStateOf(false) }
         var prompt by remember { mutableStateOf("") }
         var messages by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -123,6 +132,7 @@ class MainActivity: ComponentActivity() {
         var importKind by remember { mutableStateOf("file") }
         var pendingDownload by remember { mutableStateOf("") }
         var pendingText by remember { mutableStateOf("") }
+        var pendingLocal by remember { mutableStateOf("") }
         var localSrt by remember { mutableStateOf("1\n00:00:00,000 --> 00:00:03,000\nEscreva a sua legenda.\n") }
         var offset by remember { mutableStateOf("0") }
         var timeline by remember { mutableStateOf(emptyList<Clip>()) }
@@ -149,13 +159,13 @@ class MainActivity: ComponentActivity() {
             scope.launch {
                 try { work(); status = "$label — concluído" }
                 catch (e: CancellationException) { throw e }
-                catch (e: Exception) { status = e.message?.take(1500) ?: "Não foi possível concluir a operação" }
+                catch (e: Exception) { status = connectionMessage(e) }
                 finally { busy = false }
             }
         }
         suspend fun refresh() {
             if (direct) {
-                models = localApi.obj("/api/tags").getJSONArray("models").objects().map { JSONObject().put("id",it.getString("name")).put("name",it.getString("name")).put("provider","direct").put("free",true) }
+                models = ai.discover(aiProvider)
             } else {
                 providers = api.list("/v1/providers"); models = api.list("/v1/models")
                 files = api.list("/v1/files"); workflows = api.list("/v1/workflows"); jobs = api.list("/v1/jobs")
@@ -167,7 +177,7 @@ class MainActivity: ComponentActivity() {
         val saveFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
             if (uri != null) action("Guardar ficheiro") {
                 withContext(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.use { out ->
-                    if (pendingDownload.isNotBlank()) api.download(pendingDownload,out) else out.write(pendingText.toByteArray(Charsets.UTF_8))
+                    if(pendingLocal.isNotBlank())File(pendingLocal).inputStream().use{it.copyTo(out)} else if (pendingDownload.isNotBlank()) api.download(pendingDownload,out) else out.write(pendingText.toByteArray(Charsets.UTF_8))
                 } ?: error("Não foi possível abrir o destino") }
             }
         }
@@ -186,7 +196,7 @@ class MainActivity: ComponentActivity() {
                 }
             }
         }
-        fun download(file: JSONObject) { pendingDownload = file.getString("id"); pendingText = ""; saveFile.launch(file.getString("name")) }
+        fun download(file: JSONObject) { pendingLocal=""; pendingDownload = file.getString("id"); pendingText = ""; saveFile.launch(file.getString("name")) }
         fun preview(file: JSONObject) = action("Abrir resultado") {
             val ext = file.optString("disk").substringAfterLast('.',"bin")
             val dest = File(context.cacheDir,"results/${file.getString("id")}.$ext").apply { parentFile?.mkdirs() }
@@ -197,7 +207,7 @@ class MainActivity: ComponentActivity() {
         }
         LaunchedEffect(Unit) { if (Build.VERSION.SDK_INT >= 33) notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }
         LaunchedEffect(token, direct) {
-            if (token.isBlank() || direct) return@LaunchedEffect
+            if (token.isBlank() || vault.get("base").isBlank()) return@LaunchedEffect
             while (isActive) {
                 try {
                     val updated = api.list("/v1/jobs")
@@ -232,11 +242,38 @@ class MainActivity: ComponentActivity() {
             if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             Text(status,Modifier.padding(horizontal=18.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary)
             LazyColumn(Modifier.weight(1f),state=contentState,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                if(tab in listOf("Configuração","Modelos")) {
+                    item { Title("Ligar uma inteligência artificial", "1. Sem API: Pollinations público ou modelos locais. 2. Com API: chave gratuita própria, ligação direta sem PC. 3. Servidor PC: Ollama/ComfyUI/FFmpeg por Wi-Fi com TLS ou USB. As interfaces oficiais no navegador são um modo separado.") }
+                    item { Toggle("Ligar diretamente às IAs (sem servidor PC)",direct,{direct=it;model="";vault.set("mode_v2",if(it)"direct" else "pc")}) }
+                    if(direct) {
+                        item { Choice("Fornecedor de IA",aiProvider,aiProviders.map{it.id to it.name},{id->if(id.isNotBlank()){aiProvider=id;aiKey=vault.get("key_$id");freePlan=vault.get("free_$id")=="true";vault.set("ai_provider",id)}}) }
+                        item { Text(ai.provider(aiProvider).info); if(!ai.provider(aiProvider).local&&aiProvider!="pollinations") {Field(aiKey,{aiKey=it},"Chave API gratuita",secret=true);Toggle("Confirmo plano gratuito / créditos limitados, sem faturação automática",freePlan,{freePlan=it})} }
+                        if(aiProvider=="ollama") item {Field(ollama,{ollama=it},"Endpoint Ollama (USB ou HTTPS com certificado válido)")}
+                        item { Toggle("Autorizar envio de conteúdo ao fornecedor escolhido",remote,{remote=it;vault.set("remote_consent",it.toString())}) }
+                        item { Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            Button(enabled=!busy&&(remote||ai.provider(aiProvider).local),onClick={action("Descobrir e testar IA") {
+                                vault.set("key_$aiProvider",aiKey.trim());vault.set("free_$aiProvider",freePlan.toString());vault.set("ollama",ollama.trim());vault.set("ai_provider",aiProvider)
+                                vault.set("mode_v2","direct");direct=true
+                                diagnostic=ai.test(aiProvider,consent=remote,freePlan=freePlan); models=ai.cachedModels()
+                                val m=ai.automaticModels().firstOrNull{it.optString("provider")==aiProvider}
+                                if(m!=null)model=aiProvider+"|"+m.getString("id")
+                                vault.set("setup_v2","done")
+                            }}) {Text("Descobrir e testar IA")}
+                        };Text(diagnostic) }
+                        item {TextButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,android.net.Uri.parse(ai.provider(aiProvider).keyUrl)))}){Text(if(aiProvider=="pollinations")"Documentação e limites do serviço sem chave" else "Obter chave / consultar condições oficiais")};TextButton(onClick={tab="Chat"}){Text("Ir para o Chat")}}
+                        item {Text("Modo automático: ${ai.automaticModels().size} modelos com resposta real verificada há menos de 30 minutos. Se a quota terminar, o modelo é retirado do automático até novo teste.",style=MaterialTheme.typography.bodySmall)}
+                    } else item {Text("Servidor PC: execute Instalar-e-Iniciar.cmd no Windows, mantenha a janela aberta e complete a ligação nas Definições.");Button(onClick={tab="Definições"}){Text("Configurar ligação ao PC")}}
+                    if(tab=="Configuração") {
+                        item {Text("Serviços oficiais gratuitos no navegador — não são APIs integradas:",style=MaterialTheme.typography.titleMedium)}
+                        items(freeServices){ service -> Card { Column(Modifier.fillMaxWidth().padding(12.dp)){Text(service.name+" · "+service.modality);Text(service.note,style=MaterialTheme.typography.bodySmall);TextButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,android.net.Uri.parse(service.url)))}){Text("Abrir serviço oficial")}}} }
+                    }
+                }
                 if (tab in listOf("Chat","Programação")) {
                     item { Title(if(tab=="Chat") "Converse com os seus modelos" else "Assistente de programação", "As respostas ficam guardadas neste Android. O envio ao modelo segue as opções de privacidade abaixo.") }
-                    item { Choice("Modelo (vazio = escolha automática)",model,models.map { it.getString("provider")+"|"+it.getString("id") to it.optString("name",it.getString("id")) },{ model=it }) }
+                    item { TextButton(onClick={tab="Configuração"}){Text(if(models.isEmpty())"Nenhuma IA ligada — configurar agora" else "Configurar ou testar outra IA")} }
+                    item { Choice("Modelo (automático apenas entre modelos testados)",model,models.map { it.getString("provider")+"|"+it.getString("id") to ((if(direct) ai.provider(it.getString("provider")).name+" · " else "")+it.optString("name",it.getString("id"))+(if(direct&&!it.optBoolean("verified"))" (por testar)" else "")) },{ model=it }) }
                     item { Choice("Contexto do projeto local",selectedProject,projects.map { it.getString("id") to it.getString("name") },{ selectedProject=it }) }
-                    item { Privacy(remote,{remote=it},metered,{metered=it},direct) }
+                    item { if(direct) Toggle("Autorizar envio ao fornecedor de IA",remote,{remote=it;vault.set("remote_consent",it.toString())}) else Privacy(remote,{remote=it},metered,{metered=it},false) }
                     items(messages) { m -> Card { Column(Modifier.fillMaxWidth().padding(14.dp)) { Text(if(m.optString("role")=="user") "Tu" else "Assistente",color=violet); Text(m.optString("content")) } } }
                     item { Field(prompt,{prompt=it},if(tab=="Programação") "Código ou instrução" else "Escreva uma mensagem",4) }
                     item { Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -246,8 +283,7 @@ class MainActivity: ComponentActivity() {
                             val sent = (if(contextText.isNotBlank()) listOf(JSONObject().put("role","system").put("content",contextText)) else emptyList()) + current
                             val body = JSONObject().put("messages",JSONArray(sent))
                             val result = if(direct) {
-                                require(model.isNotBlank()) { "Descubra e selecione um modelo Ollama" }
-                                localApi.obj("/api/chat","POST",body.put("model",model.substringAfter('|')).put("stream",false)).getJSONObject("message").getString("content")
+                                ai.chat(model,sent,remote,false) {status=it}.also {models=ai.cachedModels()}
                             } else {
                                 if(model.isNotBlank()) body.put("candidates",JSONArray().put(JSONObject().put("provider",model.substringBefore('|')).put("model",model.substringAfter('|'))))
                                 api.obj("/v1/chat","POST",body.put("remote_consent",remote).put("allow_metered",metered)).getString("text")
@@ -271,6 +307,20 @@ class MainActivity: ComponentActivity() {
                 if(tab in listOf("Imagens","Vídeo")) {
                     val modality = if(tab=="Imagens") "image" else "video"
                     item { Title(if(modality=="image") "Estúdio de imagem" else "Vídeo generativo", "Executa workflows reais ComfyUI. Os controlos só têm efeito quando ligados aos inputs do workflow importado. Modelos, nós e licenças são geridos no PC.") }
+                    if(modality=="image") item {
+                        Card { Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                            Text("Imagem gratuita sem chave — Pollinations")
+                            Field(generationPrompt,{generationPrompt=it},"Instrução para imagem",3)
+                            Toggle("Autorizar envio da descrição ao serviço público",remote,{remote=it})
+                            Button(enabled=!busy&&generationPrompt.isNotBlank()&&remote,onClick={action("Gerar imagem gratuita") {
+                                val bytes=ai.image(generationPrompt,width.toInt(),height.toInt(),seed.toLong(),remote){status=it}
+                                val dir=File(context.filesDir,"gallery").apply{mkdirs()};val f=File(dir,java.util.UUID.randomUUID().toString()+".jpg")
+                                withContext(Dispatchers.IO){f.writeBytes(bytes)}
+                                db.save("local_file",JSONObject().put("name","Imagem Pollinations").put("path",f.absolutePath));localResults=db.list("local_file")
+                            }}){Text("Gerar imagem sem PC")}
+                            Text("API Classic: saída JPEG com marca do serviço e área máxima 768×768; a proporção é mantida. Intervalo mínimo 45 s. Não usa créditos nem carteira de pagamentos.",style=MaterialTheme.typography.bodySmall)
+                        }}
+                    }
                     item { Choice("Servidor ComfyUI",comfyProvider,providers.filter { it.optString("type")=="comfy" }.map {it.getString("id") to it.getString("name")},{comfyProvider=it}) }
                     item { Choice("Workflow",template,workflows.filter {it.optString("modality")==modality}.map {it.getString("id") to it.getString("name")},{template=it}) }
                     item { Field(generationPrompt,{generationPrompt=it},"Instruções: personagem, ação, cenário, estilo e câmara",4) }
@@ -343,29 +393,40 @@ class MainActivity: ComponentActivity() {
                     item { TextButton(onClick={runCatching {val t=db.list("timeline").first();timeline=t.getJSONArray("clips").objects().map{Clip(it.getString("file"),it.getDouble("start"),it.getDouble("duration"),it.getString("effect"))};aspect=t.getString("aspect")}.onFailure{status="Ainda não há uma timeline guardada"}}) {Text("Recuperar última timeline")} }
                     item { Field(localSrt,{localSrt=it},"Editor SRT — funciona sem PC",7);Field(offset,{offset=it},"Deslocar legendas em milissegundos") }
                     item { Row { OutlinedButton(onClick={importKind="srt";importFile.launch(arrayOf("*/*"))}) {Text("Importar SRT")};TextButton(onClick={runCatching {localSrt=Srt.write(Srt.shift(Srt.parse(localSrt),offset.toLong()));status="Tempos das legendas atualizados"}.onFailure{status=it.message.orEmpty()}}) {Text("Aplicar desvio")} } }
-                    item { Button(onClick={runCatching{Srt.parse(localSrt);pendingDownload="";pendingText=localSrt;saveFile.launch("legendas.srt")}.onFailure{status=it.message.orEmpty()}}) {Text("Guardar SRT no Android")} }
+                    item { Button(onClick={runCatching{Srt.parse(localSrt);pendingLocal="";pendingDownload="";pendingText=localSrt;saveFile.launch("legendas.srt")}.onFailure{status=it.message.orEmpty()}}) {Text("Guardar SRT no Android")} }
                 }
                 if(tab=="Agentes") {
-                    item { Title("Plano de criação", "Cria um plano determinístico com cenas de 5 segundos e requisitos explícitos. Não executa autonomamente modelos nem aprova custos.") }
+                    if(direct) {
+                        item {Title("Agente com IA ligada", "O modelo decompõe o pedido e executa até três etapas de redação, programação ou storyboard. O resultado é guardado num projeto local. Imagens, vídeo e áudio continuam nas ferramentas próprias, sem alegar ações que não foram executadas.")}
+                        item {Choice("Modelo do agente (automático = só modelos testados)",model,models.map{it.getString("provider")+"|"+it.getString("id") to it.getString("id")},{model=it});Field(planPrompt,{planPrompt=it},"Pedido ao agente",4);Toggle("Autorizar envio de conteúdo ao modelo",remote,{remote=it})}
+                        item {Button(enabled=!busy&&planPrompt.isNotBlank()&&remote,onClick={action("Executar agente de IA") {
+                            val result=AgentRunner(ai).run(planPrompt,model,remote){status=it}
+                            taskDetail=result.toString(2);db.save("agent",result)
+                            db.save("project",JSONObject().put("name",planPrompt.take(80)).put("context",taskDetail));projects=db.list("project")
+                        }}){Text("Executar agente de IA")};Text(taskDetail)}
+                    }
+
+                    item { Title("Plano de montagem no PC (determinístico)", "Cria um plano determinístico com cenas de 5 segundos e requisitos explícitos. Não executa autonomamente modelos nem aprova custos.") }
                     item { Field(planPrompt,{planPrompt=it},"Objetivo do projeto",4);Field(planDuration,{planDuration=it},"Duração total em segundos") }
                     item { Button(enabled=!busy&&planPrompt.isNotBlank(),onClick={action("Criar plano") { taskDetail=api.obj("/v1/agent/plan","POST",JSONObject().put("prompt",planPrompt).put("duration",planDuration.toDouble())).toString(2) }}) {Text("Criar plano de produção")} }
                     item { Text(taskDetail);Text("Execute a análise em Música e Áudio, crie o storyboard no Chat, gere os clips em Imagens/Vídeo e monte-os no Editor. Uma cadeia automática com recuperação de erros ainda requer implementação.") }
                 }
                 if(tab=="Modelos") {
                     item { Title("Fornecedores e modelos", "Configure endpoints autorizados. Descoberta e respostas exigem serviços acessíveis; uma lista de modelos não prova que há quota disponível.") }
-                    item { Button(enabled=!busy,onClick={action("Atualizar modelos e biblioteca") {refresh()}}) {Text(if(direct) "Descobrir Ollama direto" else "Atualizar catálogo local")} }
+                    item { Button(enabled=!busy,onClick={action("Atualizar modelos e biblioteca") {refresh()}}) {Text(if(direct) "Atualizar modelos do fornecedor" else "Atualizar catálogo do PC")} }
                     if(!direct) {
                         item { OutlinedButton(enabled=!busy,onClick={action("Ler fornecedores predefinidos") {presetRows=api.list("/v1/presets")}}) {Text("Carregar fornecedores predefinidos")} }
                         item { Choice("Predefinição",providerPreset,presetRows.map {it.getString("name") to it.getString("name")},{ value -> providerPreset=value;presetRows.firstOrNull{it.getString("name")==value}?.let {providerName=it.getString("name");providerType=it.getString("type");providerUrl=it.getString("url");providerLocal=it.getBoolean("local")} }) }
-                        item { Field(providerName,{providerName=it},"Nome do fornecedor");Choice("Protocolo",providerType,listOf("ollama","openai","gemini","comfy").map{it to it},{providerType=it});Field(providerUrl,{providerUrl=it},"Endpoint base");Field(providerKey,{providerKey=it},"Chave API (opcional)",secret=true);Toggle("Servidor local autorizado",providerLocal,{providerLocal=it}) }
+                        item { Toggle("Conta gratuita sem faturação no fornecedor PC",freePlan,{freePlan=it});Field(providerName,{providerName=it},"Nome do fornecedor");Choice("Protocolo",providerType,listOf("ollama","openai","gemini","comfy").map{it to it},{providerType=it});Field(providerUrl,{providerUrl=it},"Endpoint base");Field(providerKey,{providerKey=it},"Chave API (opcional)",secret=true);Toggle("Servidor local autorizado",providerLocal,{providerLocal=it}) }
                         item { Button(enabled=!busy&&providerName.isNotBlank(),onClick={action("Guardar fornecedor no PC") {
-                            api.obj("/v1/providers","POST",JSONObject().put("name",providerName).put("type",providerType).put("url",providerUrl).put("local",providerLocal).put("key",providerKey));providerKey="";providers=api.list("/v1/providers")
+                            api.obj("/v1/providers","POST",JSONObject().put("name",providerName).put("type",providerType).put("url",providerUrl).put("local",providerLocal).put("key",providerKey).put("free_plan",freePlan));providerKey="";providers=api.list("/v1/providers")
                         }}) {Text("Adicionar fornecedor")} }
                         items(providers) { p -> Card { Column(Modifier.fillMaxWidth().padding(12.dp)) { Text(p.getString("name"),style=MaterialTheme.typography.titleMedium);Text(p.getString("url"),style=MaterialTheme.typography.bodySmall);Text(if(p.optBoolean("has_key")) "Chave guardada no cofre do PC" else "Sem chave guardada");Row {
                             TextButton(enabled=!busy,onClick={action("Descobrir ${p.getString("name")}") { val r=api.obj("/v1/providers/${p.getString("id")}/discover","POST");if(r.has("nodes"))taskDetail="ComfyUI: ${r.getJSONArray("nodes").length()} nós disponíveis";models=api.list("/v1/models") }}) {Text("Descobrir")}
+                            TextButton(enabled=!busy,onClick={action("Testar resposta real") {diagnostic=api.obj("/v1/providers/${p.getString("id")}/test","POST",JSONObject().put("remote_consent",remote)).toString(2);models=api.list("/v1/models")}}){Text("Testar IA")}
                             TextButton(enabled=!busy,onClick={action("Remover fornecedor") {api.request("/v1/providers/${p.getString("id")}","DELETE");refresh()}}) {Text("Remover")}
                         } } } }
-                        item { Text(taskDetail);OutlinedButton(onClick={importKind="workflow";importFile.launch(arrayOf("application/json","text/plain","*/*"))}) {Text("Importar manifesto ComfyUI JSON")} }
+                        item { Text(diagnostic);Text(taskDetail);OutlinedButton(onClick={importKind="workflow";importFile.launch(arrayOf("application/json","text/plain","*/*"))}) {Text("Importar manifesto ComfyUI JSON")} }
                         items(workflows) { w -> Card { Column(Modifier.fillMaxWidth().padding(12.dp)){Text("${w.getString("name")} · ${w.getString("modality")}");Text(w.optString("requirements"));Text("Parâmetros ligados: ${w.optJSONObject("bindings")?.keys()?.asSequence()?.joinToString() ?: "nenhum"}",style=MaterialTheme.typography.bodySmall);TextButton(enabled=!busy,onClick={action("Remover workflow") {api.request("/v1/workflows/${w.getString("id")}","DELETE");workflows=api.list("/v1/workflows")}}){Text("Remover")}}} }
                         item { OutlinedButton(enabled=!busy,onClick={action("Consultar limites publicados") {taskDetail=api.request("/v1/quotas")}}) {Text("Consultar limites e quotas")} }
                     }
@@ -388,18 +449,30 @@ class MainActivity: ComponentActivity() {
                 }
                 if(tab=="Definições") {
                     item { Title("Ligação e privacidade", "O PC executa os modelos e o FFmpeg. As chaves dos fornecedores são guardadas no cofre do PC; o token de emparelhamento fica cifrado no Android.") }
-                    item { Field(base,{base=it},"URL do servidor AI Hub PC");Field(token,{token=it},"Token de emparelhamento",secret=true);Toggle("Chat direto Ollama (sem servidor AI Hub)",direct,{direct=it});Field(ollama,{ollama=it},"URL do Ollama direto") }
-                    item { Button(enabled=!busy,onClick={action("Guardar e testar ligação") {vault.set("base",base.trim());vault.set("token",token.trim());vault.set("direct",direct.toString());vault.set("ollama",ollama.trim());refresh()}}) {Text("Guardar e testar")} }
+                    item { Field(base,{base=it},"URL do servidor AI Hub PC");Field(token,{token=it},"Token de emparelhamento",secret=true);Toggle("IA direta no Android (sem servidor AI Hub)",direct,{direct=it});Field(ollama,{ollama=it},"URL do Ollama direto") }
+                    item { Toggle("Comparei esta impressão digital com a mostrada no PC",fingerprintConfirmed,{fingerprintConfirmed=it});Field(fingerprint,{fingerprint=it;fingerprintConfirmed=false},"Impressão digital TLS do PC (SHA256)");Field(pairingJson,{pairingJson=it},"Ou colar conteúdo de emparelhamento.json",3)
+                        OutlinedButton(onClick={runCatching{val j=JSONObject(pairingJson);base=j.getString("url");token=j.getString("token");fingerprint=j.getString("fingerprint");status="Compare a impressão digital com o PC antes de guardar"}.onFailure{status="JSON de emparelhamento inválido"}}){Text("Ler dados de emparelhamento")}
+                    }
+                    item {Button(enabled=!busy,onClick={action("Procurar servidores na rede local") {lanServers=LanDiscovery(context).discover();diagnostic=if(lanServers.isEmpty())"Nenhum servidor anunciado. Confirme mesma rede, servidor aberto e firewall; também pode introduzir IP manualmente." else "${lanServers.size} servidor(es) encontrado(s). Compare a impressão digital no PC; mDNS não autentica o servidor."}}){Text("Procurar PC na rede (8 s)")};Text(diagnostic)}
+                    items(lanServers){server->Card{Column(Modifier.fillMaxWidth().padding(12.dp)){Text(server.name);Text(server.url);Text(server.fingerprint,style=MaterialTheme.typography.bodySmall);TextButton(onClick={base=server.url;fingerprint=server.fingerprint;fingerprintConfirmed=false;status="Endereço selecionado. Compare a impressão digital com o PC e introduza o token antes de guardar."}){Text("Selecionar endereço; confirmar no PC")}}}}
+                    item { Button(enabled=!busy,onClick={action("Guardar e testar ligação") {require(direct||fingerprint.isBlank()||fingerprintConfirmed){"Compare e confirme a impressão digital TLS no PC antes do emparelhamento"};vault.set("base",base.trim());vault.set("token",token.trim());vault.set("fingerprint",fingerprint.trim());vault.set("direct",direct.toString());vault.set("mode_v2",if(direct)"direct" else "pc");vault.set("ollama",ollama.trim());if(direct){models=ai.discover(aiProvider)}else{require(api.obj("/health").optString("service")=="AI Hub Studio"){"O URL não aponta para um servidor AI Hub"};hardware=api.obj("/v1/diagnostics").toString(2);refresh();vault.set("setup_v2","done")}}}) {Text("Guardar e testar")} }
                     item { Text("Por USB: adb reverse tcp:8787 tcp:8787 e, para Ollama, adb reverse tcp:11434 tcp:11434. Utilize 127.0.0.1 nos URLs. Na rede local, utilize o IP privado do PC com HTTPS e instale a CA de confiança no Android. Nunca desative a verificação TLS nem abra portas no router.",style=MaterialTheme.typography.bodySmall) }
                     item { OutlinedButton(enabled=!busy,onClick={action("Detetar hardware do PC") {hardware=api.obj("/v1/hardware").toString(2)}}) {Text("Detetar hardware do PC")};Text(hardware) }
                     item { Text("Android: ${Build.MANUFACTURER} ${Build.MODEL} · API ${Build.VERSION.SDK_INT}. Esta versão não executa pesos de modelos no próprio telemóvel.",style=MaterialTheme.typography.bodySmall) }
                     item { OutlinedButton(onClick={confirmClear=true}) {Text("Eliminar histórico e projetos deste Android")} }
                     item { Text("Notificações: a aplicação acompanha tarefas enquanto está aberta. O PC continua as tarefas quando a app fecha. Reabra e atualize para consultar os resultados. Não existe ainda serviço Android de acompanhamento em segundo plano.") }
                 }
+                if(tab in listOf("Imagens","Projetos")&&localResults.isNotEmpty()) {
+                    item{Text("Resultados guardados no Android",style=MaterialTheme.typography.titleMedium)}
+                    items(localResults){r->Card{Column(Modifier.fillMaxWidth().padding(12.dp)){Text(r.getString("name"));Row{
+                        TextButton(onClick={pendingLocal=r.getString("path");pendingDownload="";saveFile.launch("imagem-aihub.jpg")}){Text("Guardar imagem")}
+                        TextButton(enabled=!busy,onClick={action("Enviar imagem para o PC") {File(r.getString("path")).inputStream().use{api.upload("imagem-aihub.jpg",it)};files=api.list("/v1/files")}}){Text("Enviar para editor PC")}
+                    }}}}
+                }
                 if(tab in listOf("Imagens","Vídeo","Música e Áudio","Editor","Projetos")) {
                     item { HorizontalDivider();Text("Biblioteca do PC",style=MaterialTheme.typography.titleLarge);Row {
                         OutlinedButton(enabled=!busy,onClick={importKind="file";importFile.launch(arrayOf("*/*"))}) {Text("Importar ficheiro")}
-                        TextButton(enabled=!busy,onClick={action("Atualizar biblioteca") {refresh()}}) {Text("Atualizar")}
+                        TextButton(enabled=!busy,onClick={action("Atualizar biblioteca") {files=api.list("/v1/files");workflows=api.list("/v1/workflows");providers=api.list("/v1/providers");jobs=api.list("/v1/jobs")}}) {Text("Atualizar")}
                     };Text("Os ficheiros selecionados são enviados para o PC emparelhado. Só seguem para fornecedores externos mediante autorização.",style=MaterialTheme.typography.bodySmall) }
                     items(files) { f -> Card { Column(Modifier.fillMaxWidth().padding(12.dp)) { Text(f.getString("name"));Text("${f.optLong("size")/1024} KiB",style=MaterialTheme.typography.bodySmall);Row {
                         TextButton(enabled=!busy,onClick={preview(f)}) {Text("Abrir")};TextButton(enabled=!busy,onClick={download(f)}) {Text("Guardar")}

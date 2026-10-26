@@ -105,7 +105,7 @@ class HubTests(unittest.TestCase):
         r = self.client.post(f'/v1/providers/{p}/discover')
         self.assertEqual(r.status_code,200,r.text)
         self.assertEqual(r.json()['models'][0]['id'],'qwen3:1.7b')
-        body = {'messages':[{'role':'user','content':'Olá Portugal'}]}
+        body = {'messages':[{'role':'user','content':'Olá Portugal'}], 'candidates':[{'provider':p,'model':'qwen3:1.7b'}]}
         r = self.client.post('/v1/chat',json=body)
         self.assertEqual(r.status_code,200,r.text)
         self.assertEqual(r.json()['text'],'Olá do Ollama')
@@ -189,6 +189,40 @@ class HubTests(unittest.TestCase):
         restarted=Jobs(self.store)
         self.assertEqual(self.store.get('interrupted')['status'],'interrupted')
         restarted.pool.shutdown()
+
+    def test_automatic_excludes_untested_or_failed_models(self):
+        p=self.provider()
+        self.client.post(f'/v1/providers/{p}/discover')
+        b={'messages':[{'role':'user','content':'Olá'}]}
+        self.assertEqual(self.client.post('/v1/chat',json=b).status_code,502)
+        r=self.client.post(f'/v1/providers/{p}/test',json={})
+        self.assertEqual(r.status_code,200,r.text)
+        self.assertTrue(r.json()['ok'])
+        self.assertEqual(self.client.post('/v1/chat',json=b).status_code,200)
+        self.assertTrue(self.client.get('/v1/models').json()[0]['auto_eligible'])
+        self.fail_first=True
+        self.assertEqual(self.client.post('/v1/chat',json=b).status_code,502)
+        self.assertFalse(self.client.get('/v1/models').json()[0]['auto_eligible'])
+
+    def test_diagnostics_auth_and_installed_services(self):
+        self.provider()
+        r=self.client.get('/v1/diagnostics')
+        self.assertEqual(r.status_code,200,r.text)
+        self.assertTrue(r.json()['authenticated'])
+        self.assertTrue(r.json()['providers'][0]['reachable'])
+        self.assertEqual(r.json()['providers'][0]['models'],1)
+
+    def test_tls_pairing_identity_is_stable_and_private(self):
+        from server.network import prepare
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes
+        first,cert,key=prepare(Path(self.tmp.name)/'tls','192.168.1.123')
+        second,_,_=prepare(Path(self.tmp.name)/'tls','192.168.1.123')
+        self.assertEqual(first,second)
+        self.assertGreaterEqual(len(first['token']),32)
+        c=x509.load_pem_x509_certificate(cert.read_bytes())
+        self.assertEqual(c.fingerprint(hashes.SHA256()).hex(),first['fingerprint'])
+        self.assertIn('192.168.1.123',str(c.extensions.get_extension_for_class(x509.SubjectAlternativeName).value))
 
     def test_gemini_discovery_and_native_request(self):
         p=self.provider(name='Gemini',type='gemini',url='https://generativelanguage.googleapis.com/v1beta',local=False,key='gemini-private')
