@@ -18,7 +18,7 @@ Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente �
 
 ## Download
 
-[APK desta versão](https://github.com/efog82/app-videos-musicas/actions/runs/40402688948/artifacts/12689069202) · [Pacote Windows](https://github.com/efog82/app-videos-musicas/actions/runs/40402688948/artifacts/12688373949) · [Execução/testes](https://github.com/efog82/app-videos-musicas/actions/runs/40402688948)
+[APK desta versão](https://github.com/efog82/app-videos-musicas/actions/runs/40405121563/artifacts/12689674307) · [Pacote Windows](https://github.com/efog82/app-videos-musicas/actions/runs/40405121563/artifacts/12690535952) · [Execução/testes](https://github.com/efog82/app-videos-musicas/actions/runs/40405121563)
 
 No GitHub: **Actions → AI Hub Studio — APK e testes → execução da v0.3.2 → Artifacts**.
 

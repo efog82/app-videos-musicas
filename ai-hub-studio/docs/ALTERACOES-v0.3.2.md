@@ -6,7 +6,7 @@ Versão Android: **0.3.2**, versionCode **5**, applicationId `pt.aihub.studio`.
 
 ## 1. Eliminar imagens com confirmação
 
-O caixote do lixo fica acessível no canto de cada imagem e o botão anterior continua na linha de ações. Surge uma confirmação antes de eliminar; Cancelar mantém os dados.
+O caixote do lixo fica acessível no canto de cada imagem e o botão anterior continua na linha de ações. Também está disponível na pré-visualização em ecrã completo, incluindo imagens abertas a partir de Projetos. Surge uma confirmação antes de eliminar; Cancelar mantém os dados.
 
 A operação remove o registo da imagem, as referências multimédia nas conversas e a cópia privada em `files/media` quando já não é utilizada por outro registo. O texto das conversas é preservado. Ficheiros partilhados entre registos só são removidos depois do último. Referências em tarefas concluídas são limpas; imagens ainda usadas por tarefas em curso exigem cancelar ou aguardar a tarefa.
 

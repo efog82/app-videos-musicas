@@ -1,16 +1,16 @@
 <?xml version='1.0' encoding='UTF-8' ?>
-<testsuite name="pt.aihub.studio.ImageLibraryTest" tests="8" failures="0" errors="0" skipped="0" time="77.038" timestamp="2026-10-26T21:22:14" hostname="localhost">
+<testsuite name="pt.aihub.studio.ImageLibraryTest" tests="8" failures="0" errors="0" skipped="0" time="79.736" timestamp="2026-10-26T21:39:03" hostname="localhost">
   <properties>
     <property name="device" value="emulator-5554 - 11" />
     <property name="flavor" value="" />
     <property name="project" value=":app" />
   </properties>
-  <testcase name="confirmationCancelsThenDeletesPrivateImageAndAllHistoryReferencesOnly" classname="pt.aihub.studio.ImageLibraryTest" time="2.858" />
-  <testcase name="originalBytesAndReferenceUploadArePreservedAcrossRecreation" classname="pt.aihub.studio.ImageLibraryTest" time="0.823" />
-  <testcase name="sharedCopiesAndPathsOutsideManagedMediaAreNotDeletedPrematurely" classname="pt.aihub.studio.ImageLibraryTest" time="0.637" />
-  <testcase name="realAnonymousProviderDiscoversModelAndAnswersQuestion" classname="pt.aihub.studio.LiveProviderTest" time="32.983" />
-  <testcase name="realImagesAndImageToVideoAppearWithoutExportThenPersist" classname="pt.aihub.studio.MultimodalLiveTest" time="14.954" />
-  <testcase name="localProjectSurvivesActivityRecreationAndCanBeUsedInChat" classname="pt.aihub.studio.OfflineFlowTest" time="1.666" />
-  <testcase name="actualAndroidToCompanionTlsAndAuthentication" classname="pt.aihub.studio.PcTlsTest" time="1.055" />
-  <testcase name="wanImageToVideoIsReceivedPlayedExportedAndRetainedInProject" classname="pt.aihub.studio.WanVideoLiveTest" time="21.608" />
+  <testcase name="confirmationCancelsThenDeletesPrivateImageAndAllHistoryReferencesOnly" classname="pt.aihub.studio.ImageLibraryTest" time="2.559" />
+  <testcase name="originalBytesAndReferenceUploadArePreservedAcrossRecreation" classname="pt.aihub.studio.ImageLibraryTest" time="0.872" />
+  <testcase name="sharedCopiesAndPathsOutsideManagedMediaAreNotDeletedPrematurely" classname="pt.aihub.studio.ImageLibraryTest" time="0.407" />
+  <testcase name="realAnonymousProviderDiscoversModelAndAnswersQuestion" classname="pt.aihub.studio.LiveProviderTest" time="33.091" />
+  <testcase name="realImagesAndImageToVideoAppearWithoutExportThenPersist" classname="pt.aihub.studio.MultimodalLiveTest" time="17.473" />
+  <testcase name="localProjectSurvivesActivityRecreationAndCanBeUsedInChat" classname="pt.aihub.studio.OfflineFlowTest" time="1.365" />
+  <testcase name="actualAndroidToCompanionTlsAndAuthentication" classname="pt.aihub.studio.PcTlsTest" time="1.657" />
+  <testcase name="wanImageToVideoIsReceivedPlayedExportedAndRetainedInProject" classname="pt.aihub.studio.WanVideoLiveTest" time="21.967" />
 </testsuite>

@@ -6,50 +6,50 @@
       "failures": "0",
       "errors": "0",
       "skipped": "0",
-      "time": "77.038",
-      "timestamp": "2026-10-26T21:22:14",
+      "time": "79.736",
+      "timestamp": "2026-10-26T21:39:03",
       "hostname": "localhost"
     },
     "cases": [
       {
         "name": "confirmationCancelsThenDeletesPrivateImageAndAllHistoryReferencesOnly",
         "classname": "pt.aihub.studio.ImageLibraryTest",
-        "time": "2.858"
+        "time": "2.559"
       },
       {
         "name": "originalBytesAndReferenceUploadArePreservedAcrossRecreation",
         "classname": "pt.aihub.studio.ImageLibraryTest",
-        "time": "0.823"
+        "time": "0.872"
       },
       {
         "name": "sharedCopiesAndPathsOutsideManagedMediaAreNotDeletedPrematurely",
         "classname": "pt.aihub.studio.ImageLibraryTest",
-        "time": "0.637"
+        "time": "0.407"
       },
       {
         "name": "realAnonymousProviderDiscoversModelAndAnswersQuestion",
         "classname": "pt.aihub.studio.LiveProviderTest",
-        "time": "32.983"
+        "time": "33.091"
       },
       {
         "name": "realImagesAndImageToVideoAppearWithoutExportThenPersist",
         "classname": "pt.aihub.studio.MultimodalLiveTest",
-        "time": "14.954"
+        "time": "17.473"
       },
       {
         "name": "localProjectSurvivesActivityRecreationAndCanBeUsedInChat",
         "classname": "pt.aihub.studio.OfflineFlowTest",
-        "time": "1.666"
+        "time": "1.365"
       },
       {
         "name": "actualAndroidToCompanionTlsAndAuthentication",
         "classname": "pt.aihub.studio.PcTlsTest",
-        "time": "1.055"
+        "time": "1.657"
       },
       {
         "name": "wanImageToVideoIsReceivedPlayedExportedAndRetainedInProject",
         "classname": "pt.aihub.studio.WanVideoLiveTest",
-        "time": "21.608"
+        "time": "21.967"
       }
     ]
   },
@@ -60,15 +60,15 @@
       "failures": "0",
       "errors": "0",
       "skipped": "0",
-      "time": "7.32",
-      "timestamp": "2026-10-26T21:21:12",
+      "time": "7.62",
+      "timestamp": "2026-10-26T21:37:51",
       "hostname": "localhost"
     },
     "cases": [
       {
         "name": "systemPhotoPickerImportsOriginalAndShowsPreviewAndReference",
         "classname": "pt.aihub.studio.GalleryPickerUiTest",
-        "time": "6.731"
+        "time": "7.193"
       }
     ]
   },

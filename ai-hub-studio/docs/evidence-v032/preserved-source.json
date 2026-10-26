@@ -1,8 +1,9 @@
 {
   "base": "e38df4fb7dfe931d6c40245ec657b236c6508cc7",
-  "implementation": "5011523eeeb44585d552d75a2d67f70412aea9c0",
+  "implementation": "291cff0ab37d95d975c649c5c2ac39cec75ccedb",
   "changedPaths": [
     ".github/workflows/ai-hub-studio.yml",
+    "ai-hub-studio/README.md",
     "ai-hub-studio/android/app/build.gradle.kts",
     "ai-hub-studio/android/app/src/androidTest/java/pt/aihub/studio/WanVideoLiveTest.kt",
     "ai-hub-studio/android/app/src/main/AndroidManifest.xml",
@@ -25,7 +26,17 @@
     "ai-hub-studio/android/app/src/main/res/mipmap-anydpi-v33/ic_launcher_round.xml",
     "ai-hub-studio/android/app/src/main/res/mipmap-anydpi/ic_launcher.xml",
     "ai-hub-studio/android/app/src/main/res/mipmap-anydpi/ic_launcher_round.xml",
-    "ai-hub-studio/android/ci-picker-test.sh"
+    "ai-hub-studio/android/ci-picker-test.sh",
+    "ai-hub-studio/docs/ALTERACOES-v0.3.2.md",
+    "ai-hub-studio/docs/RELATORIO-v0.3.2.md",
+    "ai-hub-studio/docs/assets/aihub-icon-v0.3.2.svg",
+    "ai-hub-studio/docs/evidence-v032/android11-tests.xml",
+    "ai-hub-studio/docs/evidence-v032/android15-tests.xml",
+    "ai-hub-studio/docs/evidence-v032/apk-validation.json",
+    "ai-hub-studio/docs/evidence-v032/photo-picker-real.json",
+    "ai-hub-studio/docs/evidence-v032/preserved-source.json",
+    "ai-hub-studio/docs/evidence-v032/reference-wan-real.json",
+    "ai-hub-studio/docs/evidence-v032/tests-summary.json"
   ],
   "outsideAiHub": [],
   "preserved": [
