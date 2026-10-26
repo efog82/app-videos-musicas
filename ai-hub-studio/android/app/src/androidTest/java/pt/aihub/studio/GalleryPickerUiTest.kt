@@ -24,7 +24,7 @@ import java.io.File
 import java.util.regex.Pattern
 
 /** Runs separately on API 35: actual system Photo Picker, not a mocked result callback. */
-@androidx.annotation.RequiresApi(33)
+@androidx.test.filters.SdkSuppress(minSdkVersion=33)
 class GalleryPickerUiTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
     private var source:Uri?=null
