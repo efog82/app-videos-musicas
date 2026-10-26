@@ -43,6 +43,18 @@ class HubTests(unittest.TestCase):
         def upstream(request):
             self.calls.append(request)
             path = request.url.path
+            if path == '/v1beta/models':
+                return httpx.Response(200,json={'models':[{'name':'models/gemini-test','supportedGenerationMethods':['generateContent']}]})
+            if path.endswith(':generateContent'):
+                return httpx.Response(200,json={'candidates':[{'content':{'parts':[{'text':'Olá Gemini'}]}}]})
+            if path == '/object_info':
+                return httpx.Response(200,json={'Text':{},'SaveImage':{}})
+            if path == '/prompt':
+                return httpx.Response(200,json={'prompt_id':'synthetic-test-prompt'})
+            if path == '/history/synthetic-test-prompt':
+                return httpx.Response(200,json={'synthetic-test-prompt':{'status':{'status_str':'success'},'outputs':{'2':{'images':[{'filename':'fixture.png','subfolder':'','type':'output'}]}}}})
+            if path == '/view':
+                return httpx.Response(200,content=b'synthetic-output-for-contract-test')
             if path.endswith('/models'):
                 return httpx.Response(200,json={'data':[
                     {'id':'free','pricing':{'prompt':'0','completion':'0'}},
@@ -177,6 +189,50 @@ class HubTests(unittest.TestCase):
         restarted=Jobs(self.store)
         self.assertEqual(self.store.get('interrupted')['status'],'interrupted')
         restarted.pool.shutdown()
+
+    def test_gemini_discovery_and_native_request(self):
+        p=self.provider(name='Gemini',type='gemini',url='https://generativelanguage.googleapis.com/v1beta',local=False,key='gemini-private')
+        r=self.client.post(f'/v1/providers/{p}/discover')
+        self.assertEqual(r.status_code,200,r.text)
+        self.assertEqual(r.json()['models'][0]['id'],'gemini-test')
+        r=self.client.post('/v1/chat',json={'messages':[{'role':'system','content':'Responda em português'},{'role':'user','content':'Olá'}],
+             'candidates':[{'provider':p,'model':'gemini-test'}],'remote_consent':True,'allow_metered':True})
+        self.assertEqual(r.status_code,200,r.text)
+        self.assertEqual(r.json()['text'],'Olá Gemini')
+        req=self.calls[-1]
+        self.assertEqual(req.headers['x-goog-api-key'],'gemini-private')
+        self.assertNotIn('gemini-private',str(req.url))
+        self.assertEqual(json.loads(req.content)['systemInstruction']['parts'][0]['text'],'Responda em português')
+
+    def test_comfy_generation_queue_and_output_download(self):
+        p=self.provider(name='ComfyUI',type='comfy',url='http://127.0.0.1:8188')
+        w=self.client.post('/v1/workflows',json={'name':'Contrato de teste, não modelo real','modality':'image',
+            'workflow':{'1':{'class_type':'Text','inputs':{'text':'original'}},'2':{'class_type':'SaveImage','inputs':{}}},
+            'bindings':{'prompt':'1.text'}}).json()['id']
+        r=self.client.post('/v1/generate',json={'provider':p,'template':w,'values':{'prompt':'Portugal'}})
+        self.assertEqual(r.status_code,200,r.text)
+        id=r.json()['id'];self.app.state.jobs.futures[id].result(timeout=5)
+        job=self.store.get(id)
+        self.assertEqual(job['status'],'done',job)
+        file=job['result']['files'][0]
+        self.assertEqual(self.client.get('/v1/files/'+file['id']+'/download').content,b'synthetic-output-for-contract-test')
+        submitted=next(json.loads(c.content) for c in self.calls if c.url.path=='/prompt')
+        self.assertEqual(submitted['prompt']['1']['inputs']['text'],'Portugal')
+
+    def test_cancel_queued_job_and_bound_queue(self):
+        release=threading.Event()
+        jobs=self.app.state.jobs
+        running=jobs.submit('blocked',lambda progress:release.wait(5))
+        try:
+            pending=jobs.submit('cancel',lambda progress:{})
+            self.assertEqual(jobs.cancel(pending['id'])['status'],'cancelled')
+            for _ in range(19):
+                jobs.submit('queued',lambda progress:{})
+            with self.assertRaises(ValueError):
+                jobs.submit('overflow',lambda progress:{})
+        finally:
+            release.set()
+        jobs.futures[running['id']].result(timeout=5)
 
     def test_url_policy(self):
         for url,local in [('http://example.com',False),('http://169.254.169.254',True),('http://0.0.0.0:8787',True),('https://user:pass@example.com',False),('http://127.0.0.1:22',True)]:
