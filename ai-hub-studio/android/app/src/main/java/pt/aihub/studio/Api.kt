@@ -8,6 +8,9 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
 import java.io.InputStream
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class AiHttpFailure(val status:Int,val retryAfter:Long?,message:String):java.io.IOException(message)
 
@@ -42,12 +45,20 @@ class Api(private val base: () -> String, private val token: () -> String, priva
         }
         return c.inputStream.bufferedReader().use { it.readText() }
     }
-    suspend fun request(path: String, method: String = "GET", body: JSONObject? = null): String = withContext(Dispatchers.IO) {
-        val c = connection(path,method)
-        try {
-            if (body != null) { c.doOutput = true; c.setRequestProperty("Content-Type","application/json"); c.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) } }
-            response(c)
-        } finally { c.disconnect() }
+    companion object {private val pool=java.util.concurrent.Executors.newCachedThreadPool()}
+    suspend fun request(path: String, method: String = "GET", body: JSONObject? = null): String = suspendCancellableCoroutine { continuation ->
+        val active=java.util.concurrent.atomic.AtomicReference<HttpURLConnection?>()
+        continuation.invokeOnCancellation{active.get()?.let{c->pool.execute{c.disconnect()}}}
+        pool.execute {
+            var c:HttpURLConnection?=null
+            try {
+                c=connection(path,method);active.set(c)
+                if(!continuation.isActive){c.disconnect();return@execute}
+                if(body!=null){c.doOutput=true;c.setRequestProperty("Content-Type","application/json");c.outputStream.use{it.write(body.toString().toByteArray(Charsets.UTF_8))}}
+                val value=response(c)
+                if(continuation.isActive)continuation.resume(value)
+            } catch(e:Exception){if(continuation.isActive)continuation.resumeWithException(e)}finally{c?.disconnect()}
+        }
     }
     suspend fun obj(path: String, method: String = "GET", body: JSONObject? = null) = JSONObject(request(path,method,body))
     suspend fun list(path: String) = JSONArray(request(path)).objects()

@@ -78,7 +78,7 @@ class DirectAi(private val vault:Vault) {
             val zero=pricing!=null&&pricing.has("prompt")&&pricing.has("completion")&&pricing.keys().asSequence().all{pricing.optString(it).toDoubleOrNull()==0.0}
             if(p.id=="openrouter" && !zero)return@mapNotNull null
             JSONObject().put("id",model).put("provider",p.id).put("name",row.optString("name",model)).put("free",p.local||p.protocol=="classic"||zero)
-                .put("verified",false).put("observed",System.currentTimeMillis()).put("capabilities",JSONArray().put("chat")).put("pricing",pricing?:JSONObject())
+                .put("verified",false).put("observed",System.currentTimeMillis()).put("capabilities",JSONArray().put("chat").apply{if(row.optJSONObject("architecture")?.optJSONArray("input_modalities")?.toString()?.contains("image")==true || (p.id=="gemini"&&model.startsWith("gemini")))put("vision")}).put("pricing",pricing?:JSONObject())
         }
         saveModels(id,rows)
         return cachedModels()
@@ -127,14 +127,31 @@ class DirectAi(private val vault:Vault) {
             if(wait>0)waitUntil(System.currentTimeMillis()+wait,"A aguardar a próxima quota gratuita",onWait)
             nextUse[id]=System.currentTimeMillis()+31000
         }
-        val body=JSONObject().put("model",model).put("messages",JSONArray(messages)).put("stream",false)
+        val wired=messages.map { message ->
+            val attachments=message.optJSONArray("attachments")?.objects().orEmpty()
+            if(attachments.isEmpty())JSONObject(message.toString()).apply{remove("attachments")} else {
+                val parts=JSONArray().put(JSONObject().put("type","text").put("text",message.optString("content")))
+                attachments.forEach{attachment->
+                    val file=java.io.File(attachment.getString("path"));require(file.length()<=10*1024*1024){"Anexo superior a 10 MiB"}
+                    val mime=attachment.getString("mime")
+                    if(mime.startsWith("image/"))parts.put(JSONObject().put("type","image_url").put("image_url",JSONObject().put("url","data:$mime;base64,"+android.util.Base64.encodeToString(file.readBytes(),android.util.Base64.NO_WRAP))))
+                    else if(p.protocol!="gemini")parts.put(JSONObject().put("type","text").put("text",file.readText().take(100000)))
+                }
+                JSONObject().put("role",message.getString("role")).put("content",parts)
+            }
+        }
+        val body=JSONObject().put("model",model).put("messages",JSONArray(wired)).put("stream",false)
         if(p.id=="openrouter")body.put("provider",JSONObject().put("max_price",JSONObject().put("prompt",0).put("completion",0)))
         val client=api(p)
         try {
         suspend fun complete():String=when(p.protocol) {
             "ollama"->client.obj("/api/chat","POST",body).getJSONObject("message").getString("content")
             "gemini"->{
-                val contents=messages.filter{it.optString("role")!="system"}.map {JSONObject().put("role",if(it.optString("role")=="assistant")"model" else "user").put("parts",JSONArray().put(JSONObject().put("text",it.getString("content"))))}
+                val contents=messages.filter{it.optString("role")!="system"}.map {message->
+                    val parts=JSONArray().put(JSONObject().put("text",message.getString("content")))
+                    message.optJSONArray("attachments")?.objects()?.forEach{attachment->val file=java.io.File(attachment.getString("path"));require(file.length()<=10*1024*1024){"Anexo superior a 10 MiB"};parts.put(JSONObject().put("inlineData",JSONObject().put("mimeType",attachment.getString("mime")).put("data",android.util.Base64.encodeToString(file.readBytes(),android.util.Base64.NO_WRAP))))}
+                    JSONObject().put("role",if(message.optString("role")=="assistant")"model" else "user").put("parts",parts)
+                }
                 val b=JSONObject().put("contents",JSONArray(contents))
                 val system=messages.filter{it.optString("role")=="system"}.joinToString("\n"){it.optString("content")}
                 if(system.isNotBlank())b.put("systemInstruction",JSONObject().put("parts",JSONArray().put(JSONObject().put("text",system))))

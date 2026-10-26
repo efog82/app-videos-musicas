@@ -1,46 +1,28 @@
 package pt.aihub.studio
-
 import androidx.compose.ui.test.*
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 
-/** Actual UI -> Android HTTP -> public model -> persisted answer. No mocked provider. */
 class LiveProviderTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
-    @Test fun realAnonymousProviderDiscoversModelAndAnswersQuestion() {
+    @Test fun realAnonymousProviderDiscoversModelAndAnswersQuestion(){
         org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("liveProviders")=="true")
-        val context=InstrumentationRegistry.getInstrumentation().targetContext
-        val report=StringBuilder("REAL_NETWORK_UI_TEST\n")
-        val data=LocalData(context)
-        fun currentStatus()=compose.onNodeWithTag("connection-status").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString {it.text}
-        fun failIfError() {
-            val message=currentStatus()
-            if(listOf("Quota gratuita esgotada","Serviço indisponível","Resposta incompatível","URL incorreto","Chave API inválida","Tempo de ligação","TLS recusado").any{message.startsWith(it)})error(message)
-        }
-        try {
-            compose.onNodeWithText("Configuração",useUnmergedTree=true).performScrollTo().performClick()
-            compose.onNodeWithTag("studio-content").performScrollToNode(hasText("Autorizar envio de conteúdo ao fornecedor escolhido"))
-            compose.onNodeWithText("Autorizar envio de conteúdo ao fornecedor escolhido").performScrollTo().performClick()
-            compose.onNodeWithTag("studio-content").performScrollToNode(hasText("Descobrir e testar IA"))
-            compose.onNodeWithText("Descobrir e testar IA").performScrollTo().performClick()
-            compose.waitUntil(240000) { failIfError();compose.onAllNodesWithText("resposta real recebida",substring=true).fetchSemanticsNodes().isNotEmpty() }
-            report.append("UI: discover and test returned a real model response\n")
-            compose.onNodeWithTag("studio-content").performScrollToNode(hasText("Ir para o Chat"))
-            compose.onNodeWithText("Ir para o Chat").performScrollTo().performClick()
-            compose.onNodeWithTag("studio-content").performScrollToNode(hasText("Escreva uma mensagem"))
-            compose.onNodeWithText("Escreva uma mensagem").performScrollTo().performTextInput("Quanto é 2+2? Responde apenas 4.")
-            compose.onNodeWithTag("studio-content").performScrollToNode(hasText("Enviar"))
-            compose.onNodeWithText("Enviar").performScrollTo().performClick()
-            compose.waitUntil(240000) { failIfError();data.list("conversation").any {it.optString("title").startsWith("Quanto é 2+2?")} }
-            val conversation=data.list("conversation").first{it.optString("title").startsWith("Quanto é 2+2?")}
-            val answer=conversation.getJSONArray("messages").objects().last{it.optString("role")=="assistant"}.getString("content")
-            assertTrue(answer.contains("4"))
-            report.append("Question sent through UI: Quanto é 2+2?\nActual provider response: "+answer+"\nPASS\n")
-        } catch(e:Throwable) {report.append("FAIL: "+connectionMessage(e)+"\nUI status: "+runCatching{currentStatus()}.getOrDefault("unavailable"));compose.onRoot().printToLog("AIHUB_TREE");throw e}
-        finally {println(report.toString());data.close();java.io.File(context.getExternalFilesDir(null),"live-provider.txt").writeText(report.toString())}
+        val vm=compose.activity.studio
+        compose.onNodeWithContentDescription("Fornecedores e definições").performClick()
+        if(!vm.consent){compose.onNodeWithTag("providers-settings").performScrollToNode(hasText("Autorizar envio de conteúdo aos fornecedores escolhidos"));compose.onNodeWithText("Autorizar envio de conteúdo aos fornecedores escolhidos").performClick()}
+        compose.onNodeWithTag("providers-settings").performScrollToNode(hasText("Descobrir e testar IA"))
+        compose.onNodeWithText("Descobrir e testar IA").performClick()
+        compose.waitUntil(240000){!vm.configurationBusy&&vm.status.contains("resposta real recebida")}
+        compose.onNodeWithContentDescription("Fechar definições").performClick()
+        compose.onNodeWithTag("chat-composer").performTextInput("Quanto é 2+2? Responde apenas 4.")
+        compose.onNodeWithContentDescription("Enviar").performClick()
+        compose.waitUntil(240000){!vm.chatBusy&&vm.messages.lastOrNull()?.optString("role")=="assistant"}
+        val answer=vm.messages.last().getString("content")
+        assertTrue(answer.contains("4"))
+        println("REAL_NETWORK_UI_TEST v0.3: actual provider response: $answer — PASS")
+        assertTrue(vm.db.list("conversation").isNotEmpty())
     }
 }

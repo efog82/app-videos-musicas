@@ -2,9 +2,9 @@ name: AI Hub Studio — APK e testes
 on:
   push:
     branches: [main]
-    paths: ['ai-hub-studio/**', '.github/workflows/ai-hub-studio.yml']
+    paths: ['ai-hub-studio/android/**', 'ai-hub-studio/server/**', 'ai-hub-studio/Instalar-e-Iniciar.cmd', '.github/workflows/ai-hub-studio.yml']
   pull_request:
-    paths: ['ai-hub-studio/**', '.github/workflows/ai-hub-studio.yml']
+    paths: ['ai-hub-studio/android/**', 'ai-hub-studio/server/**', 'ai-hub-studio/Instalar-e-Iniciar.cmd', '.github/workflows/ai-hub-studio.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -85,8 +85,8 @@ jobs:
       - name: Verificar assinatura e preparar download
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/AI-Hub-Studio-v0.2.0-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose dist/AI-Hub-Studio-v0.2.0-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/AI-Hub-Studio-v0.3.0-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose dist/AI-Hub-Studio-v0.3.0-debug.apk
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -102,9 +102,9 @@ jobs:
             ai-hub-studio/android/app/build/reports/
 
   android-device:
-    name: Fluxo offline em emulador Android
+    name: Android — chat e multimédia reais
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: ai-hub-studio/android
