@@ -2,7 +2,7 @@
 
 Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente é preservada noutra pasta.
 
-**O objetivo desta atualização é conseguir ligar, descobrir e usar uma IA real.** Não é uma declaração de que toda a plataforma original está concluída.
+**O fluxo ligar → descobrir → perguntar → receber uma resposta real passou no emulador Android em 26-10-2026.** Não é uma declaração de que toda a plataforma original está concluída.
 
 - [Configurar Android, fornecedores gratuitos e PC](docs/CONFIGURACAO-v0.2.md)
 - [Auditoria: causas, correções e dependências](docs/AUDITORIA-v0.2.md)
@@ -11,6 +11,8 @@ Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente �
 - [Relatório desta atualização](docs/RELATORIO-v0.2.md)
 
 ## Download
+
+[APK desta versão](https://github.com/efog82/app-videos-musicas/actions/runs/40314110724/artifacts/12645748816) · [Pacote Windows](https://github.com/efog82/app-videos-musicas/actions/runs/40314110724/artifacts/12646311568) · [Execução/testes](https://github.com/efog82/app-videos-musicas/actions/runs/40314110724)
 
 No GitHub: **Actions → AI Hub Studio — APK e testes → execução da v0.2.0 → Artifacts**.
 
