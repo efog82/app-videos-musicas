@@ -33,7 +33,7 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
         p.id=="cloudflare"->{val key=vault.get("media_cloudflare_key");require(key.isNotBlank()){ "Introduza o token Cloudflare" };http.json(p.base+"/user/tokens/verify",headers=auth(p));"Token verificado. A geração e o acesso ao modelo ainda precisam de teste real."}
         else->{"Pollinations Classic: a ligação é testada apenas ao gerar uma imagem real; nenhuma imagem de demonstração é usada."}
     }
-    suspend fun cancelRemote(){val action=cancellation;withContext(NonCancellable){runCatching{action?.invoke()}}}
+    suspend fun cancelRemote(){val action=cancellation;withContext(NonCancellable){withTimeoutOrNull(10000){runCatching{action?.invoke()}}}}
     private fun enc(value:String)=URLEncoder.encode(value,"UTF-8").replace("+","%20")
     suspend fun generate(p:MediaProvider,prompt:String,width:Int,height:Int,seed:Long,duration:Double,model:String,reference:File?,progress:(String)->Unit):File {
         require(prompt.isNotBlank()){ "Escreva uma descrição" }

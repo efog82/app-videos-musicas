@@ -38,11 +38,12 @@ import java.io.File
 data class GenerationRequest(val kind:String,val prompt:String,val origin:String,val reference:JSONObject?)
 
 @Composable fun EmptyCard(title:String,subtitle:String,icon:androidx.compose.ui.graphics.vector.ImageVector) {OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){Icon(icon,null,Modifier.size(32.dp),tint=MaterialTheme.colorScheme.primary);Text(title,style=MaterialTheme.typography.titleMedium);Text(subtitle,style=MaterialTheme.typography.bodyMedium)}}}
-@Composable fun TaskCard(task:JSONObject,onCancel:()->Unit){
+@Composable fun TaskCard(task:JSONObject,onCancel:()->Unit,onRetry:(()->Unit)?=null){
     val state=task.optString("state");val labels=mapOf("queued" to "Em espera","running" to "A gerar","failed" to "Não foi possível gerar","cancelled" to "Cancelado","interrupted" to "Interrompido")
     OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
         Text(labels[state]?:state,style=MaterialTheme.typography.titleSmall);Text(task.optString("prompt"),maxLines=2,overflow=TextOverflow.Ellipsis);Text(task.optString("message"),style=MaterialTheme.typography.bodySmall,color=if(state=="failed")MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary)
         if(state=="running")LinearProgressIndicator(Modifier.fillMaxWidth())
+        if(state in listOf("failed","interrupted","cancelled")&&onRetry!=null)OutlinedButton(onClick=onRetry){Text("Novo pedido / outro fornecedor")}
         if(state in listOf("queued","running"))TextButton(onClick=onCancel){Text("Cancelar pedido")}
     }}
 }
@@ -101,8 +102,9 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
     var model by remember(provider){mutableStateOf(provider.models.first())}
     var count by remember{mutableStateOf("1")};var duration by remember{mutableStateOf("2")};var seed by remember{mutableStateOf(kotlin.random.Random.nextInt(1,Int.MAX_VALUE-10).toString())}
     var experimental by remember(provider){mutableStateOf(false)}
-    ModalBottomSheet(onDismissRequest=onDismiss){
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max=700.dp).testTag("generation-form"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+    val sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)
+    ModalBottomSheet(onDismissRequest=onDismiss,sheetState=sheetState){
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max=700.dp).imePadding().testTag("generation-form"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
             item{Text(if(request.kind=="image")"Gerar imagem" else if(request.reference==null)"Gerar vídeo" else "Animar imagem",style=MaterialTheme.typography.headlineSmall)}
             request.reference?.let{asset->item{AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem de referência",modifier=Modifier.fillMaxWidth().height(130.dp))}}
             item{SelectField("Fornecedor",provider.id,choices.map{it.id to it.title}){id->choices.firstOrNull{it.id==id}?.let{provider=it}};Text(provider.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary)}
@@ -141,3 +143,5 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
         }
     }
 }
+
+fun requestFromTask(task:JSONObject,assets:List<JSONObject>)=GenerationRequest(task.optString("kind"),task.optString("prompt"),task.optString("conversation"),assets.firstOrNull{it.optString("id")==task.optString("reference")})

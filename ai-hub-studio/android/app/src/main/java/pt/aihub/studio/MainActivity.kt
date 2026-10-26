@@ -111,12 +111,12 @@ class MainActivity:ComponentActivity() {
             }
             Text(vm.status,Modifier.padding(horizontal=16.dp,vertical=5.dp).testTag("connection-status"),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.secondary,maxLines=4,overflow=TextOverflow.Ellipsis)
             when(vm.tab){
-                "Chat"->ChatTimeline(vm,onImage={text->requestImage(text,vm.conversationId)},onOpen={expanded=it},onAnimate={animate(it)},onSave={save(it)})
+                "Chat"->ChatTimeline(vm,onRetry={generation=it},onImage={text->requestImage(text,vm.conversationId)},onOpen={expanded=it},onAnimate={animate(it)},onSave={save(it)})
                 "Imagens","Vídeos"->{
                     val kind=if(vm.tab=="Imagens")"image" else "video"
                     LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp),modifier=Modifier.testTag("media-gallery")) {
                         item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column{Text(if(kind=="image")"Imagina. Cria. Explora." else "Dá movimento às tuas ideias.",style=MaterialTheme.typography.titleLarge);Text("Geração online · sem PC",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)};FilledIconButton(onClick={generation=GenerationRequest(kind,"","",null)}){Icon(Icons.Outlined.Add,if(kind=="image")"Gerar imagem" else "Gerar vídeo")}}}
-                        items(vm.tasks.filter{it.optString("kind")==kind&&it.optString("state")!="done"}.take(10),key={it.getString("id")}){TaskCard(it,onCancel={vm.cancelTask(it.getString("id"))})}
+                        items(vm.tasks.filter{it.optString("kind")==kind&&it.optString("state")!="done"}.take(10),key={it.getString("id")}){TaskCard(it,onCancel={vm.cancelTask(it.getString("id"))},onRetry={generation=requestFromTask(it,vm.assets)})}
                         if(vm.assets.none{it.optString("kindMedia")==kind})item {EmptyCard(if(kind=="image")"A tua galeria começa com uma ideia" else "Cria um clip a partir de texto ou de uma imagem","Os resultados aparecem aqui e ficam guardados no Android.",Icons.Outlined.AutoAwesome)}
                         items(vm.assets.filter{it.optString("kindMedia")==kind},key={it.getString("id")}){asset->AssetCard(asset,onOpen={expanded=asset},onAnimate={animate(asset)},onVariation={requestImage(asset.optString("prompt"),asset.optString("conversation"))},onSave={save(asset)},onShare={shareAsset(context,asset)},onProject={AssetProjectMenu(vm,asset)},onDelete={vm.deleteAsset(asset)})}
                     }
@@ -133,13 +133,13 @@ class MainActivity:ComponentActivity() {
     Box{OutlinedButton(onClick={open=true},modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp)){
         Icon(Icons.Outlined.AutoAwesome,null,Modifier.size(18.dp));Text(selected?.let{vm.ai.provider(it.getString("provider")).name.substringBefore(" —")+" · "+it.getString("id")}?:"Escolher IA / automático",Modifier.weight(1f).padding(horizontal=8.dp),maxLines=1,overflow=TextOverflow.Ellipsis);Icon(Icons.Outlined.ExpandMore,null)
     };DropdownMenu(expanded=open,onDismissRequest={open=false},modifier=Modifier.heightIn(max=400.dp)){
-        DropdownMenuItem(text={Text("Automático · apenas modelos testados")},onClick={vm.setSelection("");open=false})
-        vm.models.forEach{m->DropdownMenuItem(text={Text(vm.ai.provider(m.getString("provider")).name.substringBefore(" —")+" · "+m.getString("id"))},onClick={vm.setSelection(m.getString("provider")+"|"+m.getString("id"));open=false})}
+        DropdownMenuItem(text={Text("Automático · apenas modelos testados")},onClick={vm.chooseModel("");open=false})
+        vm.models.forEach{m->DropdownMenuItem(text={Text(vm.ai.provider(m.getString("provider")).name.substringBefore(" —")+" · "+m.getString("id"))},onClick={vm.chooseModel(m.getString("provider")+"|"+m.getString("id"));open=false})}
         DropdownMenuItem(text={Text("Configurar fornecedor…")},onClick={open=false;vm.settings=true})
     }}
 }
 
-@Composable private fun ChatTimeline(vm:StudioModel,onImage:(String)->Unit,onOpen:(JSONObject)->Unit,onAnimate:(JSONObject)->Unit,onSave:(JSONObject)->Unit) {
+@Composable private fun ChatTimeline(vm:StudioModel,onRetry:(GenerationRequest)->Unit,onImage:(String)->Unit,onOpen:(JSONObject)->Unit,onAnimate:(JSONObject)->Unit,onSave:(JSONObject)->Unit) {
     val context=LocalContext.current;val list=rememberLazyListState()
     LaunchedEffect(vm.messages.size,vm.chatBusy){if(vm.messages.isNotEmpty())list.animateScrollToItem(vm.messages.size-1)}
     LazyColumn(state=list,modifier=Modifier.fillMaxSize().testTag("chat-timeline"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
@@ -163,7 +163,7 @@ class MainActivity:ComponentActivity() {
                 }
             }
         }
-        items(vm.tasks.filter{it.optString("conversation")==vm.conversationId&&it.optString("state") in listOf("queued","running","failed")}){task->TaskCard(task,onCancel={vm.cancelTask(task.getString("id"))})}
+        items(vm.tasks.filter{it.optString("conversation")==vm.conversationId&&it.optString("state") in listOf("queued","running","failed")}){task->TaskCard(task,onCancel={vm.cancelTask(task.getString("id"))},onRetry={onRetry(requestFromTask(task,vm.assets))})}
         if(vm.chatBusy)item{Row(Modifier.padding(10.dp),verticalAlignment=Alignment.CenterVertically){CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp);Text("A pensar…",Modifier.padding(start=12.dp),color=MaterialTheme.colorScheme.secondary)}}
         item{Spacer(Modifier.height(12.dp))}
     }

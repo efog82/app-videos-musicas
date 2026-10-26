@@ -62,7 +62,7 @@ class StudioModel(app:Application):AndroidViewModel(app) {
         db.save("conversation",JSONObject().put("title",existing?.optString("title")?:first.trim().replace(Regex("\\s+")," ").take(64).ifBlank{"Conversa"}).put("messages",JSONArray(messages)).put("project",currentProject),conversationId)
         conversations=db.list("conversation")
     }
-    fun setSelection(value:String){selection=value;vault.set("preferred_model_v3",value)}
+    fun chooseModel(value:String){selection=value;vault.set("preferred_model_v3",value)}
     fun configure(provider:String,key:String,free:Boolean,test:Boolean) {
         if(configurationBusy)return
         vault.set("key_$provider",key.trim());vault.set("free_$provider",free.toString());vault.set("remote_consent",consent.toString());vault.set("ai_provider",provider)
@@ -72,7 +72,7 @@ class StudioModel(app:Application):AndroidViewModel(app) {
                 status=if(test)"A descobrir e testar uma resposta real…" else "A descobrir modelos…"
                 if(test) {
                     status=ai.test(provider,if(selection.substringBefore('|')==provider)selection.substringAfter('|') else "",consent,free)
-                    ai.automaticModels().firstOrNull{it.optString("provider")==provider}?.let{setSelection(provider+"|"+it.getString("id"))}
+                    ai.automaticModels().firstOrNull{it.optString("provider")==provider}?.let{chooseModel(provider+"|"+it.getString("id"))}
                 } else {ai.discover(provider);status="Catálogo recebido. Teste ou envie uma pergunta para verificar o modelo."}
             } catch(e:Exception){status=connectionMessage(e)}finally{models=ai.cachedModels();configurationBusy=false}
         }
@@ -108,13 +108,13 @@ class StudioModel(app:Application):AndroidViewModel(app) {
     fun saveProject(name:String,context:String){require(name.isNotBlank());db.save("project",JSONObject().put("name",name).put("context",context));refresh()}
     fun assignAsset(asset:JSONObject,project:String){db.save("asset",JSONObject(asset.toString()).put("project",project),asset.getString("id"));refresh()}
     private fun saveTask(task:JSONObject){db.save("generation",task,task.getString("id"));tasks=db.list("generation")}
-    private fun updateTask(id:String,state:String,message:String){val t=tasks.firstOrNull{it.getString("id")==id}?:return;saveTask(JSONObject(t.toString()).put("state",state).put("message",message))}
+    private fun updateTask(id:String,state:String,message:String){val t=tasks.firstOrNull{it.getString("id")==id}?:return;if(t.optString("state")=="cancelled"&&state=="running")return;saveTask(JSONObject(t.toString()).put("state",state).put("message",message))}
     fun generate(provider:MediaProvider,prompt:String,width:Int,height:Int,seed:Long,duration:Double,model:String,reference:JSONObject?,count:Int,origin:String="") {
         if(!consent){status="Autorize o envio de conteúdo ao fornecedor nas definições";settings=true;return}
         require(count in 1..10){"Escolha entre 1 e 10 pedidos por lote para controlar a quota"}
         repeat(count){offset->
             val id=UUID.randomUUID().toString();val project=currentProject
-            saveTask(JSONObject().put("id",id).put("provider",provider.id).put("kind",provider.kind).put("prompt",prompt).put("state","queued").put("message","Em espera na fila da aplicação").put("project",project).put("created",System.currentTimeMillis()).put("conversation",origin))
+            saveTask(JSONObject().put("id",id).put("provider",provider.id).put("kind",provider.kind).put("prompt",prompt).put("state","queued").put("message","Em espera na fila da aplicação").put("project",project).put("created",System.currentTimeMillis()).put("conversation",origin).put("reference",reference?.optString("id")?:""))
             workers[id]=viewModelScope.launch {
                 try {
                     queue.withLock {
@@ -137,7 +137,7 @@ class StudioModel(app:Application):AndroidViewModel(app) {
             }
         }
     }
-    fun cancelTask(id:String){workers[id]?.cancel()}
+    fun cancelTask(id:String){updateTask(id,"cancelled","Cancelado localmente; é enviado cancelamento ao fornecedor quando suportado");workers[id]?.cancel()}
     private fun createAsset(input:File,kind:String,prompt:String,provider:String,project:String,origin:String,seed:Long,removeOriginal:Boolean):JSONObject {
         val hash=input.inputStream().use{stream->val digest=MessageDigest.getInstance("SHA-256");val b=ByteArray(65536);while(true){val n=stream.read(b);if(n<0)break;digest.update(b,0,n)};digest.digest().joinToString(""){"%02x".format(it)}}
         val options=android.graphics.BitmapFactory.Options().apply{inJustDecodeBounds=true}

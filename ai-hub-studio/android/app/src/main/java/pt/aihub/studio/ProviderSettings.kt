@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
                 item{Text("A tua IA de conversa",style=MaterialTheme.typography.headlineSmall);Text("Chaves guardadas com Android Keystore. Não há chaves partilhadas no APK.")}
                 item{SelectField("Fornecedor de chat",provider,aiProviders.map{it.id to it.name}){provider=it};Text(vm.ai.provider(provider).info,style=MaterialTheme.typography.bodySmall)}
                 if(provider!="pollinations"&&!vm.ai.provider(provider).local)item{OutlinedTextField(key,{key=it},label={Text("Chave API gratuita")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth());LabeledSwitch("Confirmo conta gratuita, sem faturação automática",free){free=it}}
-                item{SelectField("Modelo de chat",vm.selection,vm.models.filter{it.optString("provider")==provider}.map{provider+"|"+it.getString("id") to it.getString("id")}){vm.setSelection(it)}}
+                item{SelectField("Modelo de chat",vm.selection,vm.models.filter{it.optString("provider")==provider}.map{provider+"|"+it.getString("id") to it.getString("id")}){vm.chooseModel(it)}}
                 item{LabeledSwitch("Autorizar envio de conteúdo aos fornecedores escolhidos",vm.consent){vm.consent=it;vm.vault.set("remote_consent",it.toString())}}
                 item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
                     Button(enabled=!vm.configurationBusy&&(vm.consent||vm.ai.provider(provider).local),onClick={vm.configure(provider,key,free,true)}){Text("Descobrir e testar IA")}
