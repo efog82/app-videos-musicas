@@ -2,7 +2,7 @@
 import json,time,traceback
 from pathlib import Path
 import httpx
-from gradio_client import Client
+from gradio_client import Client,handle_file
 
 out=Path('media-research');out.mkdir(exist_ok=True)
 report=[]
@@ -24,14 +24,15 @@ def pollinations():
         with Image.open(path) as im: im.verify()
         return {'file':str(path),'bytes':len(r.content)}
 
-def space(repo,video=False):
+def space(repo,video=False,reference=None):
     c=Client(repo,verbose=False)
     info=c.view_api(return_format='dict');(out/(repo.replace('/','_')+'-api.json')).write_text(json.dumps(info,default=str,indent=2))
     endpoints=info.get('named_endpoints',{})
-    name=next((k for k in endpoints if k in ('/generate','/infer')),None)
+    name=next((k for k in (('/image_to_video',) if reference else ('/text_to_video','/generate','/infer')) if k in endpoints),None)
     if not name:raise ValueError('No supported inference API; endpoints='+','.join(endpoints))
     params=endpoints[name].get('parameters',[])
     values={'prompt':prompt,'negative_prompt':'blurry, low quality','seed':31001,'seed_ui':31001,'randomize_seed':False,'width':512,'height':512,'num_inference_steps':4,'input_image_filepath':None,'input_video_filepath':None,'height_ui':256,'width_ui':448,'mode':'text-to-video','duration_ui':1.1,'ui_frames_to_use':9,'ui_guidance_scale':3.0,'improve_texture_flag':False}
+    if reference:values['input_image_filepath']=handle_file(str(reference));values['mode']='image-to-video'
     args={}
     for p in params:
         key=p['parameter_name']
@@ -60,3 +61,6 @@ def space(repo,video=False):
 record('Pollinations Classic','image',pollinations)
 record('black-forest-labs/FLUX.1-schnell','image',lambda:space('black-forest-labs/FLUX.1-schnell'))
 record('Lightricks/ltx-video-distilled','video',lambda:space('Lightricks/ltx-video-distilled',True))
+
+if report[-1].get('ok') and (out/'pollinations.jpg').exists():
+    record('Lightricks/ltx-video-distilled image-to-video','video',lambda:space('Lightricks/ltx-video-distilled',True,out/'pollinations.jpg'))
