@@ -101,26 +101,38 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                         data.put(value?:JSONObject.NULL)
                     }
                     val session=UUID.randomUUID().toString()
-                    val submitted=http.json(p.base+api.prefix+"/call"+api.endpoint,JSONObject().put("data",data).put("session_hash",session),auth(p))
-                    val event=submitted.getString("event_id")
                     val dependencies=api.config.optJSONArray("dependencies")?.objects().orEmpty()
-                    val fn=dependencies.indexOfFirst{it.optString("api_name")==api.endpoint.removePrefix("/")}
-                    cancellationSupported=fn>=0
-                    if(cancellationSupported)cancellation={http.json(p.base+api.prefix+"/cancel",JSONObject().put("event_id",event).put("session_hash",session).put("fn_index",fn),auth(p));Unit}
+                    val index=dependencies.indexOfFirst{it.optString("api_name")==api.endpoint.removePrefix("/")}
+                    require(index>=0){"A API não publica a função da fila selecionada"}
+                    val fn=dependencies[index].optInt("id",index)
+                    // Match the official Gradio client: ZeroGPU Spaces require queue/join,
+                    // not the simplified /call API (which can report 404 inside SSE).
+                    val headers=auth(p)+mapOf("x-gradio-user" to "api")
+                    val submitted=http.json(p.base+api.prefix+"/queue/join",JSONObject().put("data",data).put("fn_index",fn).put("session_hash",session),headers)
+                    val event=submitted.getString("event_id")
+                    cancellationSupported=true
+                    cancellation={http.json(p.base+api.prefix+"/cancel",JSONObject().put("event_id",event).put("session_hash",session).put("fn_index",fn),headers);Unit}
                     progress("Pedido aceite — na fila do fornecedor. O progresso pode ser indeterminado.")
-                    val output=http.call(p.base+api.prefix+"/call"+api.endpoint+"/"+event,headers=auth(p)){c->
+                    val output=http.call(p.base+api.prefix+"/queue/data?session_hash="+enc(session),headers=headers){c->
                         c.inputStream.bufferedReader().use{reader->
-                            var type="";val payload=StringBuilder();var completed:String?=null
+                            var completed:String?=null
                             while(true){val line=reader.readLine()?:break
-                                when {
-                                    line.startsWith("event:")->type=line.removePrefix("event:").trim()
-                                    line.startsWith("data:")->payload.append(line.removePrefix("data:").trim())
-                                    line.isEmpty()->{
-                                        if(type=="error")error("O Space recusou/falhou a geração: "+payload.toString().take(500))
-                                        if(type=="complete"){completed=payload.toString();break}
-                                        if(type=="generating")progress("O fornecedor está a processar o pedido…")
-                                        type="";payload.clear()
+                                if(!line.startsWith("data:"))continue
+                                val payload=line.removePrefix("data:").trim()
+                                if(payload.isBlank())continue
+                                val message=JSONObject(payload)
+                                if(message.has("event_id")&&message.optString("event_id")!=event)continue
+                                when(message.optString("msg")) {
+                                    "queue_full"->error("A fila pública do Space está cheia; tente mais tarde")
+                                    "unexpected_error"->error("O Space falhou: "+message.optString("message").take(500))
+                                    "estimation"->{val rank=message.optInt("rank",-1);if(rank>=0)progress("Na fila do fornecedor — posição ${rank+1}")}
+                                    "process_starts","process_generating"->progress("O fornecedor está a processar o pedido…")
+                                    "process_completed"->{
+                                        val result=message.optJSONObject("output")?:error("O Space terminou sem resposta")
+                                        require(message.optBoolean("success",false)&&!result.has("error")){"O Space recusou/falhou a geração: "+result.optString("error","Resposta sem sucesso").take(500)}
+                                        completed=result.getJSONArray("data").toString();break
                                     }
+                                    "close_stream"->break
                                 }
                             }
                             completed?:error("A ligação à fila terminou sem resultado; o trabalho pode continuar no fornecedor. Não repita sem verificar.")
