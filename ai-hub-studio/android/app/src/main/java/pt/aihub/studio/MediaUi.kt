@@ -69,7 +69,8 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
     }
 }
 @Composable private fun VideoThumbnail(asset:JSONObject){
-    val frame by produceState<android.graphics.Bitmap?>(null,asset.optString("path")){value=withContext(Dispatchers.IO){runCatching{val r=android.media.MediaMetadataRetriever();try{r.setDataSource(asset.getString("path"));r.getFrameAtTime(0)}finally{r.release()}}.getOrNull()}}
+    var frame by remember(asset.optString("path")){mutableStateOf<android.graphics.Bitmap?>(null)}
+    LaunchedEffect(asset.optString("path")){frame=withContext(Dispatchers.IO){runCatching{val r=android.media.MediaMetadataRetriever();try{r.setDataSource(asset.getString("path"));r.getFrameAtTime(0)}finally{r.release()}}.getOrNull()}}
     frame?.let{Image(bitmap=it.asImageBitmap(),contentDescription="Pré-visualização do vídeo gerado",modifier=Modifier.fillMaxSize().testTag("asset-video-thumbnail"))}?:CircularProgressIndicator(Modifier.size(24.dp))
 }
 @OptIn(ExperimentalMaterial3Api::class)

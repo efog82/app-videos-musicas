@@ -34,6 +34,7 @@ class MultimodalLiveTest {
         val image=vm.assets.first{it.optString("provider")=="pollinations-image"}
         assertTrue(File(image.getString("path")).length()>1000)
         assertTrue(vm.messages.any{it.optString("assetId")==image.getString("id")})
+        compose.onNodeWithTag("chat-timeline").performScrollToNode(hasTestTag("asset-image"))
         compose.onAllNodesWithTag("asset-image").onFirst().assertIsDisplayed()
         compose.onNodeWithContentDescription("Imagem gerada").performClick()
         compose.onNodeWithContentDescription("Imagem em ecrã completo com zoom").assertIsDisplayed()
@@ -52,6 +53,7 @@ class MultimodalLiveTest {
         waitAsset("hf-ltx","video")
         val video=vm.assets.first{it.optString("kindMedia")=="video"}
         assertTrue(vm.messages.any{it.optString("assetId")==video.getString("id")})
+        compose.onNodeWithTag("chat-timeline").performScrollToNode(hasContentDescription("Reproduzir vídeo"))
         compose.onNodeWithContentDescription("Reproduzir vídeo").performClick()
         compose.waitUntil(20000){compose.onAllNodes(hasStateDescription("Vídeo preparado")).fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithTag("integrated-video-player").assertIsDisplayed()

@@ -141,7 +141,7 @@ class MainActivity:ComponentActivity() {
 
 @Composable private fun ChatTimeline(vm:StudioModel,onRetry:(GenerationRequest)->Unit,onImage:(String)->Unit,onOpen:(JSONObject)->Unit,onAnimate:(JSONObject)->Unit,onSave:(JSONObject)->Unit) {
     val context=LocalContext.current;val list=rememberLazyListState()
-    LaunchedEffect(vm.messages.size,vm.chatBusy){if(vm.messages.isNotEmpty())list.animateScrollToItem(vm.messages.size-1)}
+    LaunchedEffect(vm.conversationId,vm.messages.size,vm.assets.size,vm.chatBusy){if(vm.messages.isNotEmpty()){withFrameNanos{};list.animateScrollToItem(vm.messages.size-1)}}
     LazyColumn(state=list,modifier=Modifier.fillMaxSize().testTag("chat-timeline"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
         if(vm.messages.isEmpty())item {Column(Modifier.fillMaxWidth().padding(vertical=28.dp),horizontalAlignment=Alignment.CenterHorizontally){Surface(shape=RoundedCornerShape(22.dp),color=MaterialTheme.colorScheme.primaryContainer){Icon(Icons.Outlined.AutoAwesome,null,Modifier.padding(20.dp).size(32.dp))};Spacer(Modifier.height(20.dp));Text("O que vamos criar hoje?",style=MaterialTheme.typography.headlineSmall);Text("Conversa, imagens e vídeo no mesmo espaço.",style=MaterialTheme.typography.bodyMedium);Spacer(Modifier.height(20.dp));listOf("Cria um storyboard cinematográfico","Ajuda-me a desenvolver uma ideia","Explica este código passo a passo").forEach{suggestion->OutlinedButton(onClick={vm.send(suggestion)},modifier=Modifier.fillMaxWidth().padding(vertical=3.dp),shape=RoundedCornerShape(16.dp)){Text(suggestion)}}}}
         items(vm.messages.indices.toList()){index->val message=vm.messages[index];val user=message.optString("role")=="user"
