@@ -49,9 +49,10 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
 }
 @Composable fun AssetCard(asset:JSONObject,onOpen:()->Unit,onAnimate:()->Unit,onVariation:()->Unit,onSave:()->Unit,onShare:()->Unit,onProject: @Composable () -> Unit,onDelete:()->Unit) {
     val image=asset.optString("kindMedia")=="image"
+    var imageReady by remember(asset.optString("path")){mutableStateOf(false)}
     Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)){
-        Box(Modifier.fillMaxWidth().height(240.dp).clickable(onClick=onOpen),contentAlignment=Alignment.Center){
-            if(image)AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem gerada",modifier=Modifier.fillMaxSize().testTag("asset-image"))else VideoThumbnail(asset)
+        Box(Modifier.fillMaxWidth().height(240.dp).clickable(onClick=onOpen).testTag(if(image)"asset-image" else "asset-video").semantics{if(image)stateDescription=if(imageReady)"Imagem preparada" else "A carregar imagem"},contentAlignment=Alignment.Center){
+            if(image)AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem gerada",modifier=Modifier.fillMaxSize(),onSuccess={imageReady=true})else VideoThumbnail(asset)
             if(!image)FilledIconButton(onClick=onOpen){Icon(Icons.Outlined.PlayArrow,"Reproduzir vídeo")}
         }
         Column(Modifier.padding(horizontal=14.dp,vertical=8.dp)){

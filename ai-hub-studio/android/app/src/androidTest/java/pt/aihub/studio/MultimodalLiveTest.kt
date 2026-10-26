@@ -40,6 +40,7 @@ class MultimodalLiveTest {
         assertTrue(vm.messages.any{it.optString("assetId")==image.getString("id")})
         compose.onNodeWithTag("chat-timeline").performScrollToNode(hasTestTag("asset-image"))
         compose.onAllNodesWithTag("asset-image").onFirst().assertIsDisplayed()
+        compose.waitUntil(15000){compose.onAllNodes(hasStateDescription("Imagem preparada")).fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithContentDescription("Imagem gerada").performClick()
         compose.onNodeWithContentDescription("Imagem em ecrã completo com zoom").assertIsDisplayed()
         compose.onNodeWithTag("viewer-save").performClick()
