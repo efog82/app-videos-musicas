@@ -1,6 +1,8 @@
 package pt.aihub.studio
 
 import android.content.Intent
+import android.content.ContentValues
+import android.provider.MediaStore
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -12,6 +14,10 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
+import org.junit.After
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.junit.Rule
 import org.junit.Test
 import java.io.File
@@ -19,6 +25,8 @@ import java.io.File
 /** Real anonymous Wan inference from Android. Only the input artwork is a labelled fixture. */
 class WanVideoLiveTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
+    private var testOriginal:Uri?=null
+    @After fun cleanTestOriginal(){testOriginal?.let{compose.activity.contentResolver.delete(it,null,null)}}
     @Test fun wanImageToVideoIsReceivedPlayedExportedAndRetainedInProject(){
         org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("liveProviders")=="true")
         val vm=compose.activity.studio
@@ -30,19 +38,25 @@ class WanVideoLiveTest {
         paint.color=Color.rgb(80,110,138);canvas.drawPath(android.graphics.Path().apply{moveTo(0f,380f);lineTo(170f,130f);lineTo(350f,380f);close()},paint)
         paint.color=Color.WHITE;canvas.drawPath(android.graphics.Path().apply{moveTo(190f,510f);lineTo(300f,510f);lineTo(250f,550f);close()},paint)
         fixture.outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+        val originalBytes=fixture.readBytes()
+        testOriginal=compose.activity.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,ContentValues().apply{put(MediaStore.Images.Media.DISPLAY_NAME,"Wan-reference-test-${System.nanoTime()}.png");put(MediaStore.Images.Media.MIME_TYPE,"image/png");put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/AIHub-Test-Fixtures")})!!
+        compose.activity.contentResolver.openOutputStream(testOriginal!!)!!.use{it.write(originalBytes)}
         lateinit var referenceId:String
         lateinit var projectId:String
         compose.runOnIdle {
             vm.consent=true;vm.saveProject("Wan real ${System.currentTimeMillis()}",prompt);projectId=vm.projects.first().getString("id");vm.currentProject=projectId
-            referenceId=vm.db.save("asset",JSONObject().put("path",fixture.path).put("kindMedia","image").put("mime","image/png").put("prompt","Referência de teste desenhada, não é uma geração de IA").put("provider","test-input-fixture").put("project",projectId).put("conversation",""))
-            vm.refresh();vm.tab="Imagens"
         }
+        val imported=runBlocking{withContext(Dispatchers.Main){vm.importGalleryImage(testOriginal!!)}}!!
+        referenceId=imported.getString("id");assertArrayEquals(originalBytes,File(imported.getString("path")).readBytes())
+        compose.runOnIdle{vm.tab="Imagens"}
         compose.onNodeWithTag("media-gallery").performScrollToNode(hasTestTag("asset-card-$referenceId"))
-        compose.onNode(hasContentDescription("Imagem gerada") and hasAnyAncestor(hasTestTag("asset-card-$referenceId"))).performClick()
+        compose.onNode(hasContentDescription("Imagem selecionada da galeria") and hasAnyAncestor(hasTestTag("asset-card-$referenceId"))).performClick()
         compose.onNodeWithTag("viewer-animate").performClick()
         compose.onNodeWithTag("generation-form").performScrollToNode(hasText("Hugging Face · LTX Distilled"))
         compose.onNodeWithText("Hugging Face · LTX Distilled").performClick()
         compose.onNodeWithText("Hugging Face · Wan 2.2 I2V 14B").performClick()
+        compose.onNodeWithTag("generation-form").performScrollToNode(hasText("Descrição da geração"))
+        compose.onNodeWithText("Descrição da geração").performTextReplacement(prompt)
         compose.onNodeWithTag("generation-form").performScrollToNode(hasText("Duração (0,5–5 s)"))
         compose.onNodeWithText("Duração (0,5–5 s)").performTextReplacement("2.0")
         compose.onNodeWithTag("generation-form").performScrollToNode(hasTestTag("submit-generation"));compose.onNodeWithTag("submit-generation").performClick()
@@ -70,6 +84,7 @@ class WanVideoLiveTest {
         compose.onNodeWithContentDescription("Fechar pré-visualização").performClick();compose.activityRule.scenario.recreate()
         assertTrue(compose.activity.studio.assets.any{it.getString("id")==video.getString("id")&&it.optString("project")==projectId})
         assertTrue(File(video.getString("path")).isFile)
+        compose.activity.contentResolver.openInputStream(testOriginal!!)!!.use{assertArrayEquals(originalBytes,it.readBytes())}
         println("REAL_WAN_VIDEO_PASS: direct API, portrait MP4, first decoded video frame, optional gallery export, share URI and persistent project")
     }
 }

@@ -26,6 +26,7 @@ class StudioModel(app:Application):AndroidViewModel(app) {
     var dark by mutableStateOf(vault.get("theme_v3")!="light");private set
     var tab by mutableStateOf("Chat")
     var status by mutableStateOf("Escolha uma IA e autorize o envio em Fornecedores. Os pedidos gratuitos têm quotas.")
+    var importingImage by mutableStateOf(false);private set
     var settings by mutableStateOf(false)
     var models by mutableStateOf(ai.cachedModels());private set
     var messages by mutableStateOf(emptyList<JSONObject>());private set
@@ -54,7 +55,12 @@ class StudioModel(app:Application):AndroidViewModel(app) {
     fun newChat(){chatWorker?.cancel();conversationId="";messages=emptyList();status="Nova conversa"}
     fun openConversation(c:JSONObject){chatWorker?.cancel();conversationId=c.getString("id");messages=c.optJSONArray("messages")?.objects().orEmpty();currentProject=c.optString("project");tab="Chat"}
     fun deleteConversation(id:String){db.delete(id);if(id==conversationId)newChat();refresh()}
+    private fun existingMediaMessages(values:List<JSONObject>):List<JSONObject> {
+        val existing=db.list("asset").map{it.optString("id")}.toSet()
+        return removeImageReferences(values,values.mapNotNull{it.optString("assetId").takeIf{id->id.isNotBlank()&&id !in existing}}.toSet())
+    }
     fun persistConversation(){
+        messages=existingMediaMessages(messages)
         if(messages.isEmpty())return
         if(conversationId.isBlank())conversationId=UUID.randomUUID().toString()
         val existing=conversations.firstOrNull{it.optString("id")==conversationId}
@@ -97,7 +103,7 @@ class StudioModel(app:Application):AndroidViewModel(app) {
                 if(conversationId==id){val mediaAdded=messages.drop(input.size).filter{it.has("assetId")};messages=input+JSONObject().put("role","assistant").put("content",answer)+mediaAdded;persistConversation()}
                 else {
                     val c=conversations.firstOrNull{it.optString("id")==id}
-                    if(c!=null)db.save("conversation",JSONObject(c.toString()).put("messages",JSONArray(input+JSONObject().put("role","assistant").put("content",answer))),id)
+                    if(c!=null)db.save("conversation",JSONObject(c.toString()).put("messages",JSONArray(existingMediaMessages(input+JSONObject().put("role","assistant").put("content",answer)))),id)
                 }
                 status="Resposta recebida";models=ai.cachedModels()
             } catch(e:CancellationException){status="Espera interrompida. O fornecedor pode continuar a processar o pedido.";throw e}
@@ -138,16 +144,16 @@ class StudioModel(app:Application):AndroidViewModel(app) {
         }
     }
     fun cancelTask(id:String){updateTask(id,"cancelled","Cancelado localmente; é enviado cancelamento ao fornecedor quando suportado");workers[id]?.cancel()}
-    private fun createAsset(input:File,kind:String,prompt:String,provider:String,project:String,origin:String,seed:Long,removeOriginal:Boolean):JSONObject {
+    private fun createAsset(input:File,kind:String,prompt:String,provider:String,project:String,origin:String,seed:Long,removeOriginal:Boolean,extra:JSONObject=JSONObject()):JSONObject {
         val hash=input.inputStream().use{stream->val digest=MessageDigest.getInstance("SHA-256");val b=ByteArray(65536);while(true){val n=stream.read(b);if(n<0)break;digest.update(b,0,n)};digest.digest().joinToString(""){"%02x".format(it)}}
         val options=android.graphics.BitmapFactory.Options().apply{inJustDecodeBounds=true}
         if(kind=="image")android.graphics.BitmapFactory.decodeFile(input.path,options)
         val mime=if(kind=="video")"video/mp4" else options.outMimeType?:"image/jpeg"
-        val extension=when(mime){"image/webp"->"webp";"image/png"->"png";"video/mp4"->"mp4";else->"jpg"}
+        val extension=when(mime){"image/webp"->"webp";"image/png"->"png";"image/gif"->"gif";"image/heic"->"heic";"image/heif"->"heif";"image/avif"->"avif";"image/bmp","image/x-ms-bmp"->"bmp";"video/mp4"->"mp4";else->"jpg"}
         val dir=File(getApplication<Application>().filesDir,"media").apply{mkdirs()};val file=File(dir,"$hash.$extension")
         if(!file.exists())input.copyTo(file)
         if(removeOriginal&&input.path!=file.path)input.delete()
-        val metadata=JSONObject()
+        val metadata=JSONObject(extra.toString())
         if(kind=="video") {
             val retriever=android.media.MediaMetadataRetriever()
             try {
@@ -160,7 +166,28 @@ class StudioModel(app:Application):AndroidViewModel(app) {
         return dbSaveAsset(metadata.put("path",file.path).put("kindMedia",kind).put("mime",mime).put("prompt",prompt).put("provider",provider).put("project",project).put("conversation",origin).put("seed",seed).put("hash",hash).put("created",System.currentTimeMillis()))
     }
     private fun dbSaveAsset(value:JSONObject):JSONObject{val id=db.save("asset",value);return JSONObject(value.toString()).put("id",id)}
-    fun deleteAsset(asset:JSONObject){db.delete(asset.getString("id"));if(db.list("asset").none{it.optString("path")==asset.optString("path")})File(asset.optString("path")).delete();refresh()}
+    suspend fun importGalleryImage(uri:Uri):JSONObject? {
+        if(importingImage)return null
+        importingImage=true;status="A importar a imagem original, sem recompressão…"
+        return try {
+            val project=currentProject
+            val asset=withContext(Dispatchers.IO){
+                val original=OriginalImageImporter(getApplication()).copy(uri)
+                try {createAsset(original.file,"image",original.name,"galeria",project,"",0,true,JSONObject().put("source","gallery").put("displayName",original.name).put("width",original.width).put("height",original.height))}finally{original.file.delete()}
+            }
+            refresh();status="Imagem original pronta para usar como referência, sem alterar a galeria";asset
+        }catch(e:CancellationException){throw e}catch(e:Exception){status=connectionMessage(e);null}finally{importingImage=false}
+    }
+    fun deleteAsset(asset:JSONObject){
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO){ImageLibrary(getApplication(),db).delete(asset.getString("id"))}
+                refresh()
+                if(conversationId.isNotBlank())messages=conversations.firstOrNull{it.optString("id")==conversationId}?.optJSONArray("messages")?.objects().orEmpty()
+                status="Removido da aplicação. Os ficheiros da galeria Android foram mantidos."
+            }catch(e:Exception){status=connectionMessage(e)}
+        }
+    }
     suspend fun export(asset:JSONObject):Uri=withContext(Dispatchers.IO) {
         require(Build.VERSION.SDK_INT>=29){"Neste Android use Exportar ficheiro pelo seletor do sistema"}
         val context=getApplication<Application>();val resolver=context.contentResolver

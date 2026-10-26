@@ -49,10 +49,13 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
 }
 @Composable fun AssetCard(asset:JSONObject,onOpen:()->Unit,onAnimate:()->Unit,onVariation:()->Unit,onSave:()->Unit,onShare:()->Unit,onProject: @Composable () -> Unit,onDelete:()->Unit) {
     val image=asset.optString("kindMedia")=="image"
+    var confirmDelete by remember(asset.optString("id")){mutableStateOf(false)}
+    if(confirmDelete)AlertDialog(onDismissRequest={confirmDelete=false},title={Text(if(image)"Eliminar imagem?" else "Eliminar vídeo?")},text={Text("A cópia privada e as referências no histórico da app serão removidas. Os ficheiros da galeria Android serão mantidos.")},confirmButton={TextButton(onClick={confirmDelete=false;onDelete()},modifier=Modifier.testTag("confirm-delete-asset")){Text("Eliminar")}},dismissButton={TextButton(onClick={confirmDelete=false}){Text("Cancelar")}})
     var imageReady by remember(asset.optString("path")){mutableStateOf(false)}
     Card(Modifier.fillMaxWidth().testTag("asset-card-${asset.optString("id")}"),shape=RoundedCornerShape(22.dp)){
         Box(Modifier.fillMaxWidth().height(240.dp).clickable(onClick=onOpen).testTag(if(image)"asset-image" else "asset-video").semantics{if(image)stateDescription=if(imageReady)"Imagem preparada" else "A carregar imagem"},contentAlignment=Alignment.Center){
-            if(image)AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem gerada",modifier=Modifier.fillMaxSize(),onSuccess={imageReady=true})else VideoThumbnail(asset)
+            if(image)AsyncImage(model=File(asset.getString("path")),contentDescription=if(asset.optString("source")=="gallery")"Imagem selecionada da galeria" else "Imagem gerada",modifier=Modifier.fillMaxSize(),onSuccess={imageReady=true})else VideoThumbnail(asset)
+            if(image)FilledTonalIconButton(onClick={confirmDelete=true},modifier=Modifier.align(Alignment.TopEnd).padding(8.dp).testTag("delete-asset-${asset.optString("id")}")){Icon(Icons.Outlined.DeleteOutline,"Eliminar imagem")}
             if(!image)FilledIconButton(onClick=onOpen){Icon(Icons.Outlined.PlayArrow,"Reproduzir vídeo")}
         }
         Column(Modifier.padding(horizontal=14.dp,vertical=8.dp)){
@@ -65,7 +68,7 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
                 IconButton(onClick=onSave){Icon(Icons.Outlined.Download,"Guardar na galeria")}
                 IconButton(onClick=onShare){Icon(Icons.Outlined.Share,"Partilhar ficheiro")}
                 onProject()
-                IconButton(onClick=onDelete){Icon(Icons.Outlined.DeleteOutline,"Eliminar ficheiro")}
+                IconButton(onClick={confirmDelete=true},modifier=Modifier.testTag("delete-asset-row-${asset.optString("id")}")){Icon(Icons.Outlined.DeleteOutline,if(image)"Eliminar imagem" else "Eliminar ficheiro")}
             }
         }
     }
@@ -80,7 +83,7 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
     var scale by remember{mutableFloatStateOf(1f)};var x by remember{mutableFloatStateOf(0f)};var y by remember{mutableFloatStateOf(0f)}
     Dialog(onDismissRequest=onDismiss,properties=DialogProperties(usePlatformDefaultWidth=false)){
         Surface(Modifier.fillMaxSize(),color=Color.Black){Column{
-            TopAppBar(title={Text(if(asset.optString("kindMedia")=="video")"Vídeo gerado" else "Imagem gerada",color=Color.White)},navigationIcon={IconButton(onClick=onDismiss){Icon(Icons.Outlined.Close,"Fechar pré-visualização",tint=Color.White)}},colors=TopAppBarDefaults.topAppBarColors(containerColor=Color.Black),actions={IconButton(onClick=onSave,modifier=Modifier.testTag("viewer-save")){Icon(Icons.Outlined.Download,"Guardar na galeria",tint=Color.White)};IconButton(onClick=onShare){Icon(Icons.Outlined.Share,"Partilhar ficheiro",tint=Color.White)}})
+            TopAppBar(title={Text(if(asset.optString("kindMedia")=="video")"Vídeo gerado" else if(asset.optString("source")=="gallery")"Imagem selecionada" else "Imagem gerada",color=Color.White)},navigationIcon={IconButton(onClick=onDismiss){Icon(Icons.Outlined.Close,"Fechar pré-visualização",tint=Color.White)}},colors=TopAppBarDefaults.topAppBarColors(containerColor=Color.Black),actions={IconButton(onClick=onSave,modifier=Modifier.testTag("viewer-save")){Icon(Icons.Outlined.Download,"Guardar na galeria",tint=Color.White)};IconButton(onClick=onShare){Icon(Icons.Outlined.Share,"Partilhar ficheiro",tint=Color.White)}})
             if(asset.optString("kindMedia")=="video")MediaPlayer(asset.getString("path"),Modifier.weight(1f).fillMaxWidth())
             else Box(Modifier.weight(1f).fillMaxWidth().pointerInput(Unit){detectTransformGestures{_,pan,zoom,_->scale=(scale*zoom).coerceIn(1f,8f);x=if(scale>1)x+pan.x else 0f;y=if(scale>1)y+pan.y else 0f}},contentAlignment=Alignment.Center){AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem em ecrã completo com zoom",modifier=Modifier.fillMaxSize().graphicsLayer(scaleX=scale,scaleY=scale,translationX=x,translationY=y))}
             if(asset.optString("kindMedia")=="image")Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.SpaceEvenly){TextButton(onClick=onVariation){Text("Nova variação")};TextButton(onClick={scale=1f;x=0f;y=0f}){Text("Repor zoom")};Button(onClick=onAnimate,modifier=Modifier.testTag("viewer-animate")){Icon(Icons.Outlined.MotionPhotosOn,null);Text("Animar imagem",Modifier.padding(start=8.dp))}}

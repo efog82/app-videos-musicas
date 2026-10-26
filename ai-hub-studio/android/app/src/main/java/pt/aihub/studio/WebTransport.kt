@@ -13,7 +13,7 @@ import org.json.JSONObject
 class MediaRedirect(val destination:String):Exception()
 class WebTransport {
     companion object {private val executor=Executors.newCachedThreadPool()}
-    suspend fun <T> call(url:String,method:String="GET",headers:Map<String,String> = emptyMap(),body:ByteArray?=null,contentType:String="application/json",allowRedirect:Boolean=false,read:(HttpURLConnection)->T):T = suspendCancellableCoroutine { continuation ->
+    suspend fun <T> call(url:String,method:String="GET",headers:Map<String,String> = emptyMap(),body:ByteArray?=null,contentType:String="application/json",allowRedirect:Boolean=false,bodyWriter:((java.io.OutputStream)->Unit)?=null,bodyLength:Long?=null,read:(HttpURLConnection)->T):T = suspendCancellableCoroutine { continuation ->
         val reference=AtomicReference<HttpURLConnection?>()
         continuation.invokeOnCancellation {reference.get()?.disconnect()}
         executor.execute {
@@ -26,7 +26,11 @@ class WebTransport {
                 if(!continuation.isActive){c.disconnect();return@execute}
                 c.requestMethod=method;c.connectTimeout=15000;c.readTimeout=360000;c.instanceFollowRedirects=false
                 headers.forEach{(k,v)->c.setRequestProperty(k,v)}
-                if(body!=null){c.doOutput=true;c.setRequestProperty("Content-Type",contentType);c.setFixedLengthStreamingMode(body.size);c.outputStream.use{it.write(body)}}
+                if(body!=null||bodyWriter!=null){
+                    c.doOutput=true;c.setRequestProperty("Content-Type",contentType)
+                    if(body!=null)c.setFixedLengthStreamingMode(body.size) else if(bodyLength!=null)c.setFixedLengthStreamingMode(bodyLength) else c.setChunkedStreamingMode(65536)
+                    c.outputStream.use{output->if(body!=null)output.write(body) else bodyWriter!!.invoke(output)}
+                }
                 val status=c.responseCode
                 if(status in 300..399&&allowRedirect)throw MediaRedirect(URL(c.url,c.getHeaderField("Location")?:error("Redirecionamento sem destino")).toString())
                 if(status !in 200..299) {

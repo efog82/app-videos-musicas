@@ -12,6 +12,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.*
@@ -79,8 +80,11 @@ class MainActivity:ComponentActivity() {
             attachments=attachments+JSONObject().put("path",f.path).put("mime",mime).put("name",name)
         }.onFailure{vm.status=connectionMessage(it)}
     }}
+    val galleryPicker=rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()){uri->
+        if(uri!=null)scope.launch{vm.importGalleryImage(uri)?.let{expanded=it}}
+    }
     fun requestImage(prompt:String,origin:String=""){generation=GenerationRequest("image",prompt,origin,null)}
-    fun animate(asset:JSONObject){generation=GenerationRequest("video",asset.optString("prompt"),asset.optString("conversation"),asset)}
+    fun animate(asset:JSONObject){generation=GenerationRequest("video",if(asset.optString("source")=="gallery")"" else asset.optString("prompt"),asset.optString("conversation"),asset)}
     if(vm.settings)ProviderSettings(vm,onDismiss={vm.settings=false})
     generation?.let{request->GenerationSheet(vm,request,onDismiss={generation=null},onSubmit={generation=null})}
     expanded?.let{asset->MediaViewer(asset,onDismiss={expanded=null},onSave={save(asset)},onShare={shareAsset(context,asset)},onAnimate={expanded=null;animate(asset)},onVariation={expanded=null;requestImage(asset.optString("prompt"),asset.optString("conversation"))})}
@@ -116,6 +120,7 @@ class MainActivity:ComponentActivity() {
                     val kind=if(vm.tab=="Imagens")"image" else "video"
                     LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp),modifier=Modifier.testTag("media-gallery")) {
                         item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column{Text(if(kind=="image")"Imagina. Cria. Explora." else "Dá movimento às tuas ideias.",style=MaterialTheme.typography.titleLarge);Text("Geração online · sem PC",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)};FilledIconButton(onClick={generation=GenerationRequest(kind,"","",null)}){Icon(Icons.Outlined.Add,if(kind=="image")"Gerar imagem" else "Gerar vídeo")}}}
+                        if(kind=="image")item{OutlinedButton(enabled=!vm.importingImage,onClick={galleryPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},modifier=Modifier.fillMaxWidth().testTag("choose-gallery")){Icon(Icons.Outlined.PhotoLibrary,null);Text("Escolher da galeria",Modifier.padding(start=8.dp))};if(vm.importingImage)LinearProgressIndicator(Modifier.fillMaxWidth())}
                         items(vm.tasks.filter{it.optString("kind")==kind&&it.optString("state")!="done"}.take(10),key={it.getString("id")}){TaskCard(it,onCancel={vm.cancelTask(it.getString("id"))},onRetry={generation=requestFromTask(it,vm.assets)})}
                         if(vm.assets.none{it.optString("kindMedia")==kind})item {EmptyCard(if(kind=="image")"A tua galeria começa com uma ideia" else "Cria um clip a partir de texto ou de uma imagem","Os resultados aparecem aqui e ficam guardados no Android.",Icons.Outlined.AutoAwesome)}
                         items(vm.assets.filter{it.optString("kindMedia")==kind},key={it.getString("id")}){asset->AssetCard(asset,onOpen={expanded=asset},onAnimate={animate(asset)},onVariation={requestImage(asset.optString("prompt"),asset.optString("conversation"))},onSave={save(asset)},onShare={shareAsset(context,asset)},onProject={AssetProjectMenu(vm,asset)},onDelete={vm.deleteAsset(asset)})}

@@ -93,12 +93,9 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                     }
                     if(reference!=null) {
                         progress("A enviar a referência para o Space selecionado…")
-                        val boundary="AIHub"+UUID.randomUUID()
-                        val bytes=java.io.ByteArrayOutputStream().apply{
-                            write("--$boundary\r\nContent-Disposition: form-data; name=\"files\"; filename=\"reference.png\"\r\nContent-Type: application/octet-stream\r\n\r\n".toByteArray());write(reference.readBytes());write("\r\n--$boundary--\r\n".toByteArray())
-                        }.toByteArray()
-                        val paths=http.call(p.base+api.prefix+"/upload","POST",auth(p),bytes,"multipart/form-data; boundary=$boundary"){JSONArray(it.inputStream.bufferedReader().use{r->r.readText()})}
-                        val uploaded=JSONObject().put("path",paths.getString(0)).put("orig_name","reference.png").put("meta",JSONObject().put("_type","gradio.FileData"))
+                        val upload=ReferenceUpload(reference)
+                        val paths=http.call(p.base+api.prefix+"/upload","POST",auth(p),contentType="multipart/form-data; boundary=${upload.boundary}",bodyWriter=upload::write,bodyLength=upload.length){JSONArray(it.inputStream.bufferedReader().use{r->r.readText()})}
+                        val uploaded=JSONObject().put("path",paths.getString(0)).put("orig_name",upload.name).put("meta",JSONObject().put("_type","gradio.FileData"))
                         values["input_image_filepath"]=uploaded
                         if(p.id=="hf-wan22-i2v")values["input_image"]=uploaded
                     }
