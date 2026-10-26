@@ -14,7 +14,7 @@ concurrency:
 jobs:
   server:
     name: Servidor PC e exportação MP4
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
@@ -36,7 +36,7 @@ jobs:
           path: ai-hub-studio/server-tests.txt
   android:
     name: Android Kotlin Compose
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:
@@ -48,6 +48,9 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
