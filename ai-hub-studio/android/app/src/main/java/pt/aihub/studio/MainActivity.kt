@@ -22,12 +22,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
@@ -241,7 +244,7 @@ class MainActivity: ComponentActivity() {
             }
             if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             Text(status,Modifier.padding(horizontal=18.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary)
-            LazyColumn(Modifier.weight(1f),state=contentState,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            LazyColumn(Modifier.weight(1f).testTag("studio-content"),state=contentState,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 if(tab in listOf("Configuração","Modelos")) {
                     item { Title("Ligar uma inteligência artificial", "1. Sem API: Pollinations público ou modelos locais. 2. Com API: chave gratuita própria, ligação direta sem PC. 3. Servidor PC: Ollama/ComfyUI/FFmpeg por Wi-Fi com TLS ou USB. As interfaces oficiais no navegador são um modo separado.") }
                     item { Toggle("Ligar diretamente às IAs (sem servidor PC)",direct,{direct=it;model="";models=if(it)ai.cachedModels() else emptyList();vault.set("mode_v2",if(it)"direct" else "pc")}) }
@@ -502,7 +505,7 @@ class MainActivity: ComponentActivity() {
     OutlinedTextField(value=value,onValueChange=change,label={Text(label)},modifier=Modifier.fillMaxWidth().padding(vertical=3.dp),minLines=lines,singleLine=lines==1,
         visualTransformation=if(secret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None)
 }
-@Composable private fun Toggle(label: String, value: Boolean, change: (Boolean)->Unit) {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {Text(label,Modifier.weight(1f).padding(vertical=12.dp));Switch(checked=value,onCheckedChange=change)} }
+@Composable private fun Toggle(label: String, value: Boolean, change: (Boolean)->Unit) {Row(Modifier.fillMaxWidth().toggleable(value=value,role=Role.Switch,onValueChange=change),horizontalArrangement=Arrangement.SpaceBetween) {Text(label,Modifier.weight(1f).padding(vertical=12.dp));Switch(checked=value,onCheckedChange=null)} }
 @Composable private fun Privacy(remote: Boolean, setRemote:(Boolean)->Unit,metered:Boolean,setMetered:(Boolean)->Unit,direct:Boolean) {
     if(!direct) {Toggle("Autorizar envio a serviços externos",remote,setRemote);Toggle("Autorizar modelos com custo não confirmado",metered,setMetered)
         if(metered)Text("Pode haver cobranças. Confirme o plano e desative a faturação no fornecedor se pretende usar apenas quotas gratuitas.",color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall)}
