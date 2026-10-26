@@ -27,11 +27,15 @@ class MultimodalLiveTest {
             vm.refresh();vm.openConversation(vm.conversations.first{it.getString("id")==id})
         }
         compose.onNodeWithText("Gerar imagem").performClick()
+        // Exercise the second provider through the real selector first, so a temporary
+        // Classic outage cannot prevent diagnosing the independent video integration.
+        compose.onNodeWithText("Pollinations Classic").performClick()
+        compose.onNodeWithText("Hugging Face · FLUX Schnell").performClick()
         compose.onNodeWithTag("generation-form").performScrollToNode(hasTestTag("submit-generation"))
         compose.onNodeWithTag("submit-generation").performClick()
         fun waitAsset(provider:String,kind:String){compose.waitUntil(360000){vm.assets.any{it.optString("provider")==provider&&it.optString("kindMedia")==kind}||vm.tasks.any{it.optString("provider")==provider&&it.optString("state")=="failed"}};assertFalse(vm.tasks.filter{it.optString("provider")==provider}.joinToString{it.optString("message")},vm.tasks.any{it.optString("provider")==provider&&it.optString("state")=="failed"})}
-        waitAsset("pollinations-image","image")
-        val image=vm.assets.first{it.optString("provider")=="pollinations-image"}
+        waitAsset("hf-flux","image")
+        val image=vm.assets.first{it.optString("provider")=="hf-flux"}
         assertTrue(File(image.getString("path")).length()>1000)
         assertTrue(vm.messages.any{it.optString("assetId")==image.getString("id")})
         compose.onNodeWithTag("chat-timeline").performScrollToNode(hasTestTag("asset-image"))
@@ -60,8 +64,8 @@ class MultimodalLiveTest {
         compose.activity.window.decorView.post{InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()?.let{bitmap->File(compose.activity.filesDir,"v3-video-preview.png").outputStream().use{bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}}}
         val videoUri=runBlocking{vm.export(video)};compose.activity.contentResolver.openInputStream(videoUri)!!.use{assertTrue(it.read()!=-1)}
         compose.onNodeWithContentDescription("Fechar pré-visualização").performClick()
-        compose.runOnIdle{vm.generate(mediaProviders.first{it.id=="hf-flux"},prompt,512,512,seed,1.1,"black-forest-labs/FLUX.1-schnell",null,1)}
-        waitAsset("hf-flux","image")
+        compose.runOnIdle{vm.generate(mediaProviders.first{it.id=="pollinations-image"},prompt,512,512,seed,1.1,"Classic — modelo do serviço",null,1)}
+        waitAsset("pollinations-image","image")
         val persisted=LocalData(compose.activity);assertTrue(persisted.list("asset").count{it.optString("project")==vm.currentProject}>=3);persisted.close()
         val old=vm.assets.map{it.getString("path")};compose.activityRule.scenario.recreate()
         compose.onNodeWithTag("nav-Imagens").performClick()
