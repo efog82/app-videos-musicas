@@ -1,0 +1,27 @@
+name: AI Hub — testes reais de fornecedores multimédia
+on:
+  push:
+    branches: ['ai-hub-studio/implementation']
+    paths: ['ai-hub-studio/scripts/probe_free_media.py', '.github/workflows/ai-hub-media-research.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-services:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: ai-hub-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install httpx gradio_client pillow
+      - run: python scripts/probe_free_media.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: AI-Hub-provas-multimedia-reais
+          path: ai-hub-studio/media-research/
