@@ -82,11 +82,21 @@ jobs:
           fi
       - name: Compilar, testar e analisar Android
         run: gradle :core:test :app:assembleDebug :app:lintDebug --stacktrace --no-daemon
+      - name: Resumo dos testes JVM
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          roots=[ET.parse(p).getroot() for p in Path('core/build/test-results').rglob('TEST-*.xml')]
+          print('JVM_TEST_SUMMARY',dict(tests=sum(int(r.get('tests',0)) for r in roots),failures=sum(int(r.get('failures',0)) for r in roots),errors=sum(int(r.get('errors',0)) for r in roots)))
+          PY
       - name: Verificar assinatura e preparar download
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/debug/app-debug.apk dist/AI-Hub-Studio-v0.3.3-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose dist/AI-Hub-Studio-v0.3.3-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs dist/AI-Hub-Studio-v0.3.3-debug.apk | tee dist/APK-signature.txt
+          grep -F '9f2c433083b8383e49c1da36b28adaa758c60122f1d410f2025efce77875d23b' dist/APK-signature.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging dist/AI-Hub-Studio-v0.3.3-debug.apk | head -n 1
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -260,3 +270,34 @@ jobs:
         with:
           name: AI-Hub-Studio-PC-Windows
           path: ai-hub-studio/AI-Hub-Studio-PC-Windows.zip
+
+  release:
+    name: Publicar APK validado AI Hub v0.3.3
+    needs: [server, android, android-device, android-picker, android-zimage, windows]
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: AI-Hub-Studio-APK
+          path: release
+      - name: Publicar versão de teste com APK e assinatura
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          cat > release/notes.md <<'EOF'
+          AI Hub Studio v0.3.3 · Android · APK de desenvolvimento, compatível com a assinatura anterior.
+
+          Inclui Z-Image Turbo por API pública, estados persistentes por modelo, contagem local de gerações e reposição com fontes oficiais quando conhecida. Cloudflare FLUX usa apenas prompt e passos (4 ou 8), valida Base64/imagem e guarda diagnóstico privado com hashes. Chat, dados, separadores, modelos anteriores e Sonora preservados.
+
+          Os testes Android incluem geração real, pré-visualização, exportação, partilha, persistência e testes determinísticos de quotas/descodificação. O job de publicação só executa após todas as verificações passarem.
+
+          Cloudflare: não foi possível comprovar a qualidade visual sem credenciais Workers Free. Qwen/LTX 2.3/CogVideoX/Hunyuan não são anunciados como novas integrações funcionais. Não existe promessa de quotas ou disponibilidade ilimitadas. Os tokens Hugging Face PRO/organizações são recusados para impedir consumo automático de créditos; utilize acesso anónimo ou conta Free.
+
+          Instale o APK por cima da versão anterior, sem desinstalar. Não é necessário PC para as gerações online.
+          EOF
+          gh release create aihub-v0.3.3 --target "$SOURCE_SHA" --prerelease --title "AI Hub Studio v0.3.3" --notes-file release/notes.md release/*.apk release/SHA256SUMS.txt release/APK-signature.txt

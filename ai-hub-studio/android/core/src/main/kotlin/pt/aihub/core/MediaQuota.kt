@@ -52,6 +52,8 @@ object MediaQuotaParser {
         var reset=retryAt(h["retry-after"],now);var predicted=false;var source=if(reset!=null)"API: Retry-After" else "Resposta do fornecedor"
         var window=if(daily)"diária" else "desconhecida"
         var remaining=h["x-ratelimit-remaining-requests"]?.toLongOrNull()?:h["x-ratelimit-remaining"]?.toLongOrNull()
+        var unit="pedidos"
+        if(provider.startsWith("hf-")&&quota)Regex("(\\d+)s left",RegexOption.IGNORE_CASE).find(body)?.groupValues?.get(1)?.toLongOrNull()?.let{remaining=it;unit="s de GPU"}
         val limit=h["x-ratelimit-limit-requests"]?.toLongOrNull()?:h["x-ratelimit-limit"]?.toLongOrNull()
         val rate=h["ratelimit"].orEmpty()
         if(remaining==null)remaining=Regex("(?:^|[;,])\\s*r=(\\d+)").find(rate)?.groupValues?.get(1)?.toLongOrNull()
@@ -76,6 +78,6 @@ object MediaQuotaParser {
             status in 200..299->MediaAvailability.AVAILABLE
             else->MediaAvailability.UNKNOWN
         }
-        return MediaQuota(state,now,reset,predicted,window,remaining?.takeIf{it>=0},limit?.takeIf{it>=0},source=source,detail=if(status in 200..299)"" else clean)
+        return MediaQuota(state,now,reset,predicted,window,remaining?.takeIf{it>=0},limit?.takeIf{it>=0},unit=unit,source=source,detail=if(status in 200..299)"" else clean)
     }
 }

@@ -27,6 +27,8 @@ class MediaQuotaTest {
     @Test fun providerQuotaTextIsUsedWithoutGuessingAccountWindow(){
         val q=MediaQuotaParser.parse("hf-zimage",0,emptyMap(),"You have exceeded your ZeroGPU quota. Try again in 23:59:57",now)
         assertEquals(MediaAvailability.EXHAUSTED,q.state);assertEquals(now+86397000,q.resetAt);assertNull(q.remaining);assertEquals("desconhecida",q.window)
+        val gpu=MediaQuotaParser.parse("hf-zimage",0,emptyMap(),"You have exceeded your ZeroGPU quota (120s requested vs. 178s left). Try again in 23:59:57",now)
+        assertEquals(178L,gpu.remaining);assertEquals("s de GPU",gpu.unit)
         val unknown=MediaQuotaParser.parse("hf-flux",0,emptyMap(),"You have exceeded your ZeroGPU quota",now)
         assertNull(unknown.resetAt);assertTrue(unknown.summary(now).contains("Reposição desconhecida"))
     }

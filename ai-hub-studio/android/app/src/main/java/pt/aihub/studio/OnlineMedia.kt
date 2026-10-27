@@ -29,6 +29,19 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
         val key=if(p.id=="cloudflare")vault.get("media_cloudflare_key") else vault.get("key_huggingface")
         return if(key.isBlank())emptyMap() else mapOf("Authorization" to "Bearer $key")
     }
+    private var verifiedFreeHfKey=""
+    private suspend fun requireFreeHuggingFace(p:MediaProvider) {
+        if(!p.id.startsWith("hf-"))return
+        val token=vault.get("key_huggingface")
+        if(token.isBlank())return
+        val identity=CloudflareImages.hash(token.toByteArray())
+        if(identity==verifiedFreeHfKey)return
+        val account=http.json("https://huggingface.co/api/whoami-v2",headers=mapOf("Authorization" to "Bearer $token"))
+        require(account.optString("type")=="user"&&account.has("isPro")&&!account.optBoolean("isPro",true)) {
+            "Só é permitido usar tokens de uma conta Hugging Face Free verificada. Contas PRO/organizações podem consumir créditos automaticamente; use acesso anónimo ou um token gratuito."
+        }
+        verifiedFreeHfKey=identity
+    }
     data class ApiInfo(val prefix:String,val endpoint:String,val parameters:List<JSONObject>,val config:JSONObject)
     suspend fun info(p:MediaProvider,reference:Boolean=false):ApiInfo {
         require(p.id.startsWith("hf-")){"Este fornecedor não usa Gradio"}
@@ -53,6 +66,10 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
         val now=System.currentTimeMillis()
         val previous=quota.get(p.id,model)
         require(!(previous.state==pt.aihub.core.MediaAvailability.EXHAUSTED&&(previous.resetAt?.let{it>now}==true))){previous.summary(now)}
+        try { requireFreeHuggingFace(p) } catch(e:Exception) {
+            quota.put(p.id,model,if(e is AiHttpFailure)pt.aihub.core.MediaQuotaParser.parse(p.id,e.status,emptyMap(),connectionMessage(e),System.currentTimeMillis()) else pt.aihub.core.MediaQuota(state=pt.aihub.core.MediaAvailability.INVALID_CREDENTIALS,observedAt=System.currentTimeMillis(),source="Verificação da conta Free",detail=connectionMessage(e)))
+            throw e
+        }
         activeProvider=p.id;activeModel=model
         cancellation=null;cancellationSupported=false
         val directory=File(context.filesDir,"media").apply{mkdirs()}

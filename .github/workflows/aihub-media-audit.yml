@@ -1,8 +1,14 @@
 name: AI Hub — auditoria pública multimédia
 on:
-  pull_request:
+  push:
+    branches: ['ai-hub-studio/implementation']
     paths: ['ai-hub-studio/scripts/audit_media_033.py', '.github/workflows/aihub-media-audit.yml']
   workflow_dispatch:
+    inputs:
+      generate:
+        description: 'Executar gerações reais limitadas (consome quota gratuita)'
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -20,6 +26,7 @@ jobs:
       - run: pip install httpx gradio_client pillow
       - name: Disponibilidade real e gerações limitadas
         env:
+          AIHUB_AUDIT_GENERATE: ${{ inputs.generate || 'false' }}
           AIHUB_CF_ACCOUNT: ${{ secrets.AIHUB_CF_ACCOUNT }}
           AIHUB_CF_TOKEN: ${{ secrets.AIHUB_CF_TOKEN }}
           AIHUB_CF_FREE: ${{ vars.AIHUB_CF_FREE }}

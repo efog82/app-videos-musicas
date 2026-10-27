@@ -5,7 +5,7 @@ import httpx
 from gradio_client import Client
 from PIL import Image
 OUT=Path('media-audit-033'); OUT.mkdir(exist_ok=True)
-REPOS=['mrfakename/Z-Image-Turbo','Qwen/Qwen-Image','multimodalart/Qwen-Image-Lightning','tencent/HunyuanVideo','hunyuanvideo-community/HunyuanVideo','Lightricks/LTX-2-3','zai-org/CogVideoX-5B-Space','multimodalart/wan2-2-fast']
+REPOS=['mrfakename/Z-Image-Turbo','Qwen/Qwen-Image','multimodalart/Qwen-Image-Lightning','multimodalart/Hunyuan-Video-1-5','Lightricks/LTX-2-3','zai-org/CogVideoX-5B-Space','multimodalart/wan2-2-fast']
 PROMPTS=[('apple','A red apple on a wooden table, realistic photograph, natural window light'),('galaxy','A realistic spiral galaxy, astrophotography, detailed spiral arms, dark star field'),('landscape','Cinematic natural mountain landscape, forest and clear lake, golden hour, realistic photography')]
 report={'type':'REAL_NETWORK','startedUtc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'discovery':[],'generations':[],'cloudflare':[]}
 def save(): (OUT/'report.json').write_text(json.dumps(report,indent=2,ensure_ascii=False))
@@ -34,7 +34,7 @@ for repo in REPOS:
  except Exception as e:r.update(ok=False,error=str(e)[:700])
  report['discovery'].append(r);save();print(json.dumps(r),flush=True)
 # A single inference attempt per new image model; stop on a shared ZeroGPU quota failure.
-for repo in ['mrfakename/Z-Image-Turbo','multimodalart/Qwen-Image-Lightning','Qwen/Qwen-Image']:
+for repo in (['mrfakename/Z-Image-Turbo','multimodalart/Qwen-Image-Lightning','Qwen/Qwen-Image'] if os.getenv('AIHUB_AUDIT_GENERATE')=='true' else []):
  if repo not in clients:continue
  r={'repo':repo,'type':'REAL_GENERATION'}
  try:
@@ -59,7 +59,7 @@ for repo in ['mrfakename/Z-Image-Turbo','multimodalart/Qwen-Image-Lightning','Qw
  if 'quota' in r.get('error','').lower():break
 # Cloudflare credentials are optional CI secrets, never displayed or stored in evidence.
 account=os.getenv('AIHUB_CF_ACCOUNT','');token=os.getenv('AIHUB_CF_TOKEN','')
-if not account or not token or os.getenv('AIHUB_CF_FREE')!='true':report['cloudflare']=[{'status':'NOT_TESTED','reason':'Workers Free credentials/confirmation not configured in CI; no claim about visual quality'}]
+if os.getenv('AIHUB_AUDIT_GENERATE')!='true' or not account or not token or os.getenv('AIHUB_CF_FREE')!='true':report['cloudflare']=[{'status':'NOT_TESTED','reason':'Workers Free credentials/confirmation not configured in CI; no claim about visual quality'}]
 else:
  for label,prompt in PROMPTS:
   for steps in [4,8]:
