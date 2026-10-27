@@ -66,7 +66,7 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
         val now=System.currentTimeMillis()
         val previous=quota.get(p.id,model)
         require(!(previous.state==pt.aihub.core.MediaAvailability.EXHAUSTED&&(previous.resetAt?.let{it>now}==true))){previous.summary(now)}
-        try { requireFreeHuggingFace(p) } catch(e:Exception) {
+        try { requireFreeHuggingFace(p) } catch(e:CancellationException){throw e} catch(e:Exception) {
             quota.put(p.id,model,if(e is AiHttpFailure)pt.aihub.core.MediaQuotaParser.parse(p.id,e.status,emptyMap(),connectionMessage(e),System.currentTimeMillis()) else pt.aihub.core.MediaQuota(state=pt.aihub.core.MediaAvailability.INVALID_CREDENTIALS,observedAt=System.currentTimeMillis(),source="Verificação da conta Free",detail=connectionMessage(e)))
             throw e
         }

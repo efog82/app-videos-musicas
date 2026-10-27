@@ -7,6 +7,8 @@ class MediaQuotaTest {
     @Test fun cloudflareDailyAndCapacityAreDifferent(){
         val daily=MediaQuotaParser.parse("cloudflare",429,emptyMap(),"{\"errors\":[{\"code\":3036,\"message\":\"daily free allocation exhausted\"}]}",now)
         assertEquals(MediaAvailability.EXHAUSTED,daily.state);assertEquals(Instant.parse("2026-07-02T00:00:00Z").toEpochMilli(),daily.resetAt);assertTrue(daily.predicted);assertNull(daily.remaining);assertTrue(daily.summary(now).contains("01:00:00"))
+        val mixed=MediaQuotaParser.parse("cloudflare",429,mapOf("X-RateLimit-Remaining" to "25","X-RateLimit-Limit" to "30","RateLimit-Policy" to "default;q=30;w=60"),"{\"code\":3036}",now)
+        assertNull(mixed.remaining);assertNull(mixed.limit);assertEquals("diária",mixed.window)
         val capacity=MediaQuotaParser.parse("cloudflare",429,emptyMap(),"{\"errors\":[{\"code\":3040}]}",now)
         assertEquals(MediaAvailability.UNAVAILABLE,capacity.state);assertNull(capacity.resetAt);assertFalse(capacity.predicted)
     }
