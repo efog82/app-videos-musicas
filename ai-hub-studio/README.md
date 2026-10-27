@@ -1,9 +1,10 @@
-# AI Hub Studio — estúdio multimédia v0.3.2
+# AI Hub Studio — estúdio multimédia v0.3.3
 
 Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente é preservada noutra pasta.
 
-**Nova interface Chat/Imagens/Vídeos/Projetos, com geração direta e pré-visualização dentro da app antes de guardar na galeria.** O relatório separa os testes Android dos testes externos e das integrações experimentais. Não é uma declaração de que toda a plataforma original está concluída.
+**A v0.3.3 preserva a interface Chat/Imagens/Vídeos/Projetos e o Chat. Acrescenta Z-Image Turbo, diagnóstico Cloudflare e estados/quotas multimédia com reposição quando conhecida.** O relatório separa os testes Android dos testes externos e das integrações experimentais. Não é uma declaração de que toda a plataforma original está concluída.
 
+- [Diagnóstico Cloudflare, modelos, quotas, testes e instalação v0.3.3](docs/RELATORIO-v0.3.3.md)
 - [Novidades e utilização da v0.3.2](docs/ALTERACOES-v0.3.2.md)
 - [Testes e entrega da v0.3.2](docs/RELATORIO-v0.3.2.md)
 - [Configurar Wan 2.2 na v0.3.1](docs/CONFIGURACAO-v0.3.1.md)
@@ -18,15 +19,12 @@ Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente �
 
 ## Download
 
-[APK desta versão](https://github.com/efog82/app-videos-musicas/actions/runs/40405121563/artifacts/12689674307) · [Pacote Windows](https://github.com/efog82/app-videos-musicas/actions/runs/40405121563/artifacts/12690535952) · [Execução/testes](https://github.com/efog82/app-videos-musicas/actions/runs/40405121563)
+[Descarregar APK v0.3.3](https://github.com/efog82/app-videos-musicas/releases/download/aihub-v0.3.3/AI-Hub-Studio-v0.3.3-debug.apk) · [Versão, assinatura e SHA-256](https://github.com/efog82/app-videos-musicas/releases/tag/aihub-v0.3.3)
 
-No GitHub: **Actions → AI Hub Studio — APK e testes → execução da v0.3.2 → Artifacts**.
+É um APK de desenvolvimento (versionCode 6), com a mesma assinatura dos APKs v0.2/v0.3/v0.3.1/v0.3.2 entregues. O CI verifica o certificado antes de publicar. Instale por cima sem desinstalar para preservar dados; uma compilação local com outra chave não atualiza a instalação anterior. O APK v0.1 tinha uma assinatura efémera diferente.
 
-- **AI-Hub-Studio-APK**: ZIP com `AI-Hub-Studio-v0.3.2-debug.apk` e SHA256.
-- **AI-Hub-Studio-PC-Windows**: ZIP com `Instalar-e-Iniciar.cmd`, servidor, scripts e documentação.
-- Relatórios separados para servidor, Android, emulador e rede real.
+A publicação só ocorre após testes JVM, lint, emuladores Android (incluindo gerações reais), servidor e scripts Windows passarem. Os artefactos da execução incluem também o pacote Windows preservado e os relatórios. Cloudflare sem credenciais continua **sem qualidade visual comprovada**; consultar o relatório antes de interpretar um HTTP 200 como sucesso.
 
-É uma assinatura de desenvolvimento, não de produção. A v0.1.0 usava uma chave efémera do runner: para instalar esta atualização pode ser necessário exportar os dados que pretenda guardar e desinstalar a anterior. O novo CI guarda a chave debug em cache para melhorar continuidade; cache não substitui assinatura de produção e pode ser eliminado.
 
 ## Novo vídeo v0.3.1
 
