@@ -11,7 +11,7 @@ import org.json.JSONObject
 
 /** Reads on worker threads; cancellation closes exactly this connection. Never disables TLS. */
 class MediaRedirect(val destination:String):Exception()
-class WebTransport {
+class WebTransport(private val observe:((Int,Map<String,String>,String)->Unit)?=null) {
     companion object {private val executor=Executors.newCachedThreadPool()}
     suspend fun <T> call(url:String,method:String="GET",headers:Map<String,String> = emptyMap(),body:ByteArray?=null,contentType:String="application/json",allowRedirect:Boolean=false,bodyWriter:((java.io.OutputStream)->Unit)?=null,bodyLength:Long?=null,read:(HttpURLConnection)->T):T = suspendCancellableCoroutine { continuation ->
         val reference=AtomicReference<HttpURLConnection?>()
@@ -32,12 +32,18 @@ class WebTransport {
                     c.outputStream.use{output->if(body!=null)output.write(body) else bodyWriter!!.invoke(output)}
                 }
                 val status=c.responseCode
+                val safeNames=setOf("retry-after","ratelimit","ratelimit-policy","x-ratelimit-limit","x-ratelimit-remaining","x-ratelimit-reset","x-ratelimit-limit-requests","x-ratelimit-remaining-requests","content-type","cf-ray")
+                val responseHeaders=c.headerFields.entries.filter{it.key!=null&&it.key.lowercase() in safeNames}.associate{it.key.lowercase() to it.value.joinToString(",")}
+                if(status in 200..299)observe?.invoke(status,responseHeaders,"")
                 if(status in 300..399&&allowRedirect)throw MediaRedirect(URL(c.url,c.getHeaderField("Location")?:error("Redirecionamento sem destino")).toString())
                 if(status !in 200..299) {
-                    val raw=c.errorStream?.bufferedReader()?.use{it.readText().take(1000)}.orEmpty()
-                    val message=when(status){401,403->"Autenticação/permissão recusada; a API pode exigir uma conta gratuita ou token";402,429->"Quota gratuita esgotada. Respeite Retry-After e tente outro fornecedor configurado";404->"A API/modelo deixou de estar disponível neste endereço";in 300..399->"O serviço redirecionou o pedido; confirme o endpoint oficial, não foram reenviadas credenciais";else->"Serviço indisponível ou pedido recusado"}
-                    val detail=runCatching{JSONObject(raw).optString("detail").ifBlank{JSONObject(raw).optJSONObject("error")?.optString("message").orEmpty()}}.getOrDefault("")
-                    throw AiHttpFailure(status,c.getHeaderField("Retry-After")?.toLongOrNull(),"$message (HTTP $status)"+if(detail.isBlank())"" else ": "+detail.take(350))
+                    val raw=c.errorStream?.bufferedReader()?.use{it.readText().take(4000)}.orEmpty()
+                    val safeRaw=headers.filterKeys{it.equals("Authorization",true)}.values.fold(raw){text,secret->text.replace(secret, "[credencial omitida]").replace(secret.removePrefix("Bearer "),"[credencial omitida]")}
+                    observe?.invoke(status,responseHeaders,safeRaw)
+                    val diagnosis=pt.aihub.core.MediaQuotaParser.parse(if(address.host=="api.cloudflare.com")"cloudflare" else "",status,responseHeaders,safeRaw,System.currentTimeMillis())
+                    val message=diagnosis.state.label+if(diagnosis.resetAt!=null)" — "+diagnosis.summary(System.currentTimeMillis()).substringAfter('\n').substringBefore('\n') else ""
+                    val detail=runCatching{JSONObject(safeRaw).optString("detail").ifBlank{JSONObject(safeRaw).optJSONObject("error")?.optString("message").orEmpty()}.ifBlank{JSONObject(safeRaw).optJSONArray("errors")?.toString().orEmpty()}}.getOrDefault("")
+                    throw AiHttpFailure(status,pt.aihub.core.MediaQuotaParser.retryAt(c.getHeaderField("Retry-After"),System.currentTimeMillis())?.let{((it-System.currentTimeMillis())/1000).coerceAtLeast(0)},"$message (HTTP $status)"+if(detail.isBlank())"" else ": "+detail.take(350))
                 }
                 val result=read(c)
                 if(continuation.isActive)continuation.resume(result)

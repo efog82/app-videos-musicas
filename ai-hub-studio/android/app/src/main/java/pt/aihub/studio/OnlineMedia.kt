@@ -9,9 +9,19 @@ import java.io.File
 import java.net.URLEncoder
 import java.util.UUID
 
+class MediaGenerationFailure(message:String):java.io.IOException(message)
+
 /** Direct, authorised remote inference. No local engine, credit purchase or website automation. */
 class OnlineMedia(private val context:Context,private val vault:Vault) {
-    private val http=WebTransport()
+    private val quota=MediaStatusStore(LocalData(context))
+    private var activeProvider="";private var activeModel=""
+    private var lastResponseHeaders=emptyMap<String,String>()
+    private val http=WebTransport {status,headers,body->
+        lastResponseHeaders=headers
+        if(activeProvider.isNotBlank()&&(status !in 200..299||headers.keys.any{it.contains("ratelimit")||it=="retry-after"})) {
+            quota.put(activeProvider,activeModel,pt.aihub.core.MediaQuotaParser.parse(activeProvider,status,headers,body,System.currentTimeMillis()))
+        }
+    }
     private var nextClassic=0L
     private var cancellation:(suspend()->Unit)?=null
     var cancellationSupported=false;private set
@@ -36,10 +46,14 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
     }
     suspend fun cancelRemote(){val action=cancellation;withContext(NonCancellable){withTimeoutOrNull(10000){runCatching{action?.invoke()}}}}
     private fun enc(value:String)=URLEncoder.encode(value,"UTF-8").replace("+","%20")
-    suspend fun generate(p:MediaProvider,prompt:String,width:Int,height:Int,seed:Long,duration:Double,model:String,reference:File?,progress:(String)->Unit):File {
+    suspend fun generate(p:MediaProvider,prompt:String,width:Int,height:Int,seed:Long,duration:Double,model:String,reference:File?,cloudflareSteps:Int=8,progress:(String)->Unit):File {
         require(prompt.isNotBlank()){ "Escreva uma descrição" }
         require(reference==null||p.reference){"Este fornecedor não aceita imagens de referência; escolha um compatível"}
         if(p.kind=="video")p.video.validate(duration,reference!=null)
+        val now=System.currentTimeMillis()
+        val previous=quota.get(p.id,model)
+        require(!(previous.state==pt.aihub.core.MediaAvailability.EXHAUSTED&&(previous.resetAt?.let{it>now}==true))){previous.summary(now)}
+        activeProvider=p.id;activeModel=model
         cancellation=null;cancellationSupported=false
         val directory=File(context.filesDir,"media").apply{mkdirs()}
         val file=File(directory,UUID.randomUUID().toString()+if(p.kind=="video")".mp4" else ".jpg")
@@ -71,21 +85,18 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                     require(vault.get("media_cloudflare_key").isNotBlank()){ "Token Cloudflare em falta" }
                     progress("A gerar no Cloudflare Workers AI…")
                     require(prompt.length<=2048){"O modelo Cloudflare aceita no máximo 2048 caracteres"}
-                    val body=JSONObject().put("prompt",prompt).put("seed",seed)
-                    if(model.contains("flux"))body.put("steps",4) else body.put("width",width).put("height",height).put("num_steps",20)
+                    val body=CloudflareImages.body(model,prompt,width,height,seed,cloudflareSteps)
                     http.call(p.base+"/accounts/$account/ai/run/$model","POST",auth(p),body.toString().toByteArray()){c->
-                        if(c.contentType.orEmpty().contains("json")) {
-                            val result=JSONObject(c.inputStream.bufferedReader().use{it.readText()})
-                            val encoded=result.optJSONObject("result")?.optString("image").orEmpty()
-                            require(encoded.isNotBlank()){ "A API não devolveu uma imagem; confirme a quota, modelo e permissões" }
-                            file.writeBytes(android.util.Base64.decode(encoded,android.util.Base64.DEFAULT))
-                        } else c.inputStream.use{input->file.outputStream().use{input.copyTo(it)}}
+                        val evidence=CloudflareImages.read(c.inputStream,c.contentType.orEmpty(),file)
+                        evidence.put("provider",p.id).put("modelRequested",model).put("modelEndpoint",model).put("modelReportedByApi",JSONObject.NULL).put("request",body).put("http",c.responseCode).put("created",System.currentTimeMillis()).put("headers",JSONObject(lastResponseHeaders)).put("qualityAssessment","Não avaliada automaticamente; comparar visualmente o original com o pedido")
+                        val diagnostics=File(context.filesDir,"media-diagnostics").apply{mkdirs()}
+                        File(diagnostics,file.nameWithoutExtension+".json").writeText(evidence.toString(2))
                     }
                 }
                 else->{
                     progress("A validar API Gradio e capacidades atuais…")
                     val api=info(p,reference!=null)
-                    val values=mutableMapOf<String,Any?>("prompt" to prompt,"negative_prompt" to "blurry, distorted, low quality","seed" to seed,"seed_ui" to seed,"randomize_seed" to false,"width" to width,"height" to height,"num_inference_steps" to 4,
+                    val values=mutableMapOf<String,Any?>("prompt" to prompt,"negative_prompt" to "blurry, distorted, low quality","seed" to seed,"seed_ui" to seed,"randomize_seed" to false,"width" to width,"height" to height,"num_inference_steps" to if(p.id=="hf-zimage")9 else 4,
                         "input_image_filepath" to null,"input_video_filepath" to null,"height_ui" to height,"width_ui" to width,"mode" to if(reference==null)"text-to-video" else "image-to-video","duration_ui" to duration,"ui_frames_to_use" to 9,"ui_guidance_scale" to 3.0,"improve_texture_flag" to false)
                     if(p.id=="hf-wan22-i2v") {
                         values["input_image"]=null;values["steps"]=4;values["duration_seconds"]=duration
@@ -130,11 +141,18 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                                 when(message.optString("msg")) {
                                     "queue_full"->error("A fila pública do Space está cheia; tente mais tarde")
                                     "unexpected_error"->error("O Space falhou: "+message.optString("message").take(500))
-                                    "estimation"->{val rank=message.optInt("rank",-1);if(rank>=0)progress("Na fila do fornecedor — posição ${rank+1}")}
+                                    "estimation"->{val rank=message.optInt("rank",-1);if(rank>=0){
+                                        val detail="Na fila do fornecedor — posição ${rank+1}"
+                                        quota.put(p.id,model,pt.aihub.core.MediaQuota(state=pt.aihub.core.MediaAvailability.WAITING,observedAt=System.currentTimeMillis(),source="Fila Gradio",detail=detail));progress(detail)
+                                    }}
                                     "process_starts","process_generating"->progress("O fornecedor está a processar o pedido…")
                                     "process_completed"->{
                                         val result=message.optJSONObject("output")?:error("O Space terminou sem resposta")
-                                        require(message.optBoolean("success",false)&&result.isNull("error")){videoFailure(result.optString("error","Resposta sem sucesso"))}
+                                        if(!message.optBoolean("success",false)||!result.isNull("error")) {
+                                            val detail=result.optString("error","Resposta sem sucesso")
+                                            quota.put(p.id,model,pt.aihub.core.MediaQuotaParser.parse(p.id,0,emptyMap(),detail,System.currentTimeMillis()))
+                                            throw MediaGenerationFailure(videoFailure(detail))
+                                        }
                                         completed=result.getJSONArray("data").toString();break
                                     }
                                     "close_stream"->break
@@ -165,7 +183,12 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                 val retriever=android.media.MediaMetadataRetriever()
                 try {retriever.setDataSource(file.path);require((retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()?:0)>0){"O resultado não é um vídeo válido"}}finally{retriever.release()}
             }
+            quota.success(p.id,model)
             return file
-        } catch(e:CancellationException){cancelRemote();file.delete();throw e} catch(e:Exception){file.delete();throw e}
+        } catch(e:CancellationException){cancelRemote();file.delete();throw e} catch(e:Exception){
+            file.delete()
+            if(e !is AiHttpFailure&&e !is MediaGenerationFailure)quota.put(p.id,model,pt.aihub.core.MediaQuotaParser.parse(p.id,0,emptyMap(),connectionMessage(e),System.currentTimeMillis()))
+            throw e
+        } finally {activeProvider="";activeModel=""}
     }
 }

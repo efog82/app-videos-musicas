@@ -5,7 +5,7 @@ PAIR_URL=$(python -c "import json;print(json.load(open('ci-pairing.json'))['url'
 PAIR_TOKEN=$(python -c "import json;print(json.load(open('ci-pairing.json'))['token'])")
 PAIR_PIN=$(python -c "import json;print(json.load(open('ci-pairing.json'))['fingerprint'])")
 echo "::add-mask::$PAIR_TOKEN"
-gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=pt.aihub.studio.GalleryPickerUiTest -Pandroid.testInstrumentationRunnerArguments.liveProviders=true "-Pandroid.testInstrumentationRunnerArguments.pcUrl=$PAIR_URL" "-Pandroid.testInstrumentationRunnerArguments.pcToken=$PAIR_TOKEN" "-Pandroid.testInstrumentationRunnerArguments.pcPin=$PAIR_PIN" -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon --stacktrace
+gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=pt.aihub.studio.GalleryPickerUiTest,pt.aihub.studio.ZImageLiveTest -Pandroid.testInstrumentationRunnerArguments.liveProviders=true "-Pandroid.testInstrumentationRunnerArguments.pcUrl=$PAIR_URL" "-Pandroid.testInstrumentationRunnerArguments.pcToken=$PAIR_TOKEN" "-Pandroid.testInstrumentationRunnerArguments.pcPin=$PAIR_PIN" -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon --stacktrace
 TEST_RESULT=$?
 mkdir -p app/build/reports/androidTests
 adb exec-out run-as pt.aihub.studio cat /sdcard/Android/data/pt.aihub.studio/files/live-provider.txt > app/build/reports/androidTests/live-provider.txt

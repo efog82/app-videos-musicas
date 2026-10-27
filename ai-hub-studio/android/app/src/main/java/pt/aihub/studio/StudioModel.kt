@@ -21,6 +21,7 @@ import java.util.UUID
 
 class StudioModel(app:Application):AndroidViewModel(app) {
     val vault=Vault(app);val db=LocalData(app);val ai=DirectAi(vault)
+    val mediaStatus=MediaStatusStore(db)
     private val mediaClient=OnlineMedia(app,vault);private val queue=Mutex();private val handler=Handler(Looper.getMainLooper())
     private val workers=mutableMapOf<String,Job>()
     var dark by mutableStateOf(vault.get("theme_v3")!="light");private set
@@ -115,18 +116,18 @@ class StudioModel(app:Application):AndroidViewModel(app) {
     fun assignAsset(asset:JSONObject,project:String){db.save("asset",JSONObject(asset.toString()).put("project",project),asset.getString("id"));refresh()}
     private fun saveTask(task:JSONObject){db.save("generation",task,task.getString("id"));tasks=db.list("generation")}
     private fun updateTask(id:String,state:String,message:String){val t=tasks.firstOrNull{it.getString("id")==id}?:return;if(t.optString("state")=="cancelled"&&state=="running")return;saveTask(JSONObject(t.toString()).put("state",state).put("message",message))}
-    fun generate(provider:MediaProvider,prompt:String,width:Int,height:Int,seed:Long,duration:Double,model:String,reference:JSONObject?,count:Int,origin:String="") {
+    fun generate(provider:MediaProvider,prompt:String,width:Int,height:Int,seed:Long,duration:Double,model:String,reference:JSONObject?,count:Int,origin:String="",cloudflareSteps:Int=8) {
         if(!consent){status="Autorize o envio de conteúdo ao fornecedor nas definições";settings=true;return}
         require(count in 1..10){"Escolha entre 1 e 10 pedidos por lote para controlar a quota"}
         repeat(count){offset->
             val id=UUID.randomUUID().toString();val project=currentProject
-            saveTask(JSONObject().put("id",id).put("provider",provider.id).put("kind",provider.kind).put("prompt",prompt).put("state","queued").put("message","Em espera na fila da aplicação").put("project",project).put("created",System.currentTimeMillis()).put("conversation",origin).put("reference",reference?.optString("id")?:"").put("durationRequested",duration).put("widthRequested",width).put("heightRequested",height).put("seed",seed+offset).put("model",model))
+            saveTask(JSONObject().put("id",id).put("provider",provider.id).put("kind",provider.kind).put("prompt",prompt).put("state","queued").put("message","Em espera na fila da aplicação").put("project",project).put("created",System.currentTimeMillis()).put("conversation",origin).put("reference",reference?.optString("id")?:"").put("durationRequested",duration).put("widthRequested",width).put("heightRequested",height).put("seed",seed+offset).put("model",model).put("cloudflareSteps",cloudflareSteps))
             workers[id]=viewModelScope.launch {
                 try {
                     queue.withLock {
                         updateTask(id,"running","A contactar o fornecedor…")
-                        val file=mediaClient.generate(provider,prompt,width,height,seed+offset,duration,model,reference?.let{File(it.getString("path"))}){message->handler.post{updateTask(id,"running",message)}}
-                        val asset=withContext(Dispatchers.IO){createAsset(file,provider.kind,prompt,provider.id,project,origin,seed+offset,true)}
+                        val file=mediaClient.generate(provider,prompt,width,height,seed+offset,duration,model,reference?.let{File(it.getString("path"))},cloudflareSteps){message->handler.post{updateTask(id,"running",message)}}
+                        val asset=withContext(Dispatchers.IO){createAsset(file,provider.kind,prompt,provider.id,project,origin,seed+offset,true,JSONObject().put("model",model).put("cloudflareSteps",if(provider.id=="cloudflare"&&model==pt.aihub.core.CloudflareImageRequest.FLUX)cloudflareSteps else JSONObject.NULL).put("seedApplied",!(provider.id=="cloudflare"&&model==pt.aihub.core.CloudflareImageRequest.FLUX)))}
                         if(origin.isNotBlank()) {
                             val c=db.list("conversation").firstOrNull{it.getString("id")==origin}
                             if(c!=null) {

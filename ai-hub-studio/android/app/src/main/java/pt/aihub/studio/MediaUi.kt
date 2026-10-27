@@ -115,6 +115,7 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
     var model by remember(provider){mutableStateOf(provider.models.first())}
     var count by remember{mutableStateOf("1")};var duration by remember(provider){mutableStateOf((request.seconds?.takeIf{provider.id==request.providerId&&it in provider.video.minSeconds..provider.video.maxSeconds}?:provider.video.defaultSeconds).toString())};var seed by remember{mutableStateOf(kotlin.random.Random.nextInt(1,Int.MAX_VALUE-10).toString())}
     var experimental by remember(provider){mutableStateOf(false)}
+    var cloudflareSteps by remember{mutableStateOf("8")}
     val sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)
     ModalBottomSheet(onDismissRequest=onDismiss,sheetState=sheetState){
         LazyColumn(Modifier.fillMaxWidth().heightIn(max=700.dp).imePadding().testTag("generation-form"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
@@ -123,20 +124,26 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
             reference?.let{asset->item{AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem de referência",modifier=Modifier.fillMaxWidth().height(130.dp))}}
             item{SelectField("Fornecedor",provider.id,choices.map{it.id to it.title}){id->choices.firstOrNull{it.id==id}?.let{provider=it}};Text(provider.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary)}
             item{SelectField("Modelo",model,provider.models.map{it to it}){model=it};Text(if(provider.tested||vm.vault.get("media_test_${provider.id}").isNotBlank())"Geração real previamente confirmada; disponibilidade atual sujeita a quota" else "Experimental — ainda não testado com geração real nesta conta",style=MaterialTheme.typography.labelSmall)}
+            item{MediaStatusLabel(vm,provider.id,model)}
+            if(provider.id=="cloudflare"&&model==pt.aihub.core.CloudflareImageRequest.FLUX)item{SelectField("Passos FLUX",cloudflareSteps,listOf("4" to "4 · menor consumo","8" to "8 · mais passos, sem garantia de qualidade")){cloudflareSteps=it};Text("Seed não enviado: não consta da tabela de parâmetros deste endpoint. O pedido e a integridade dos bytes ficam no diagnóstico privado.",style=MaterialTheme.typography.labelSmall)}
             item{OutlinedTextField(prompt,{prompt=it},label={Text("Descrição da geração")},modifier=Modifier.fillMaxWidth(),minLines=3,maxLines=8)}
             if(provider.video.referenceDeterminesSize&&request.kind=="video")item{Text("Formato e resolução seguem a imagem de referência. O fornecedor ajusta as dimensões para 480–832 px, podendo recortar. Use uma imagem vertical para vídeo vertical.",style=MaterialTheme.typography.bodySmall)}
             if(!(provider.id=="cloudflare"&&model.contains("flux"))&&!(request.kind=="video"&&provider.video.referenceDeterminesSize))item{SelectField("Proporção",aspect,listOf("1:1","4:5","9:16","16:9").map{it to it}){aspect=it};SelectField("Lado maior / resolução solicitada",resolution,(if(request.kind=="video")listOf("512","768","1024") else listOf("512","768","1024")).map{it to "$it px"}){resolution=it}}
+            if(provider.id=="hf-zimage")item{Text("Z-Image: dimensões ajustadas a múltiplos de 64, com mínimo 512 e máximo 1024 por lado. A proporção pode aproximar-se; 9 passos fixos, guidance 0 no fornecedor.",style=MaterialTheme.typography.bodySmall)}
             if(provider.id=="cloudflare"&&model.contains("flux"))item{Text("Este endpoint não publica controlos de resolução/proporção. É usada a saída padrão do modelo.",style=MaterialTheme.typography.bodySmall)}
             item{Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedTextField(seed,{seed=it},label={Text("Seed")},modifier=Modifier.weight(1f));if(request.kind=="image")OutlinedTextField(count,{count=it},label={Text("N.º imagens (1–10)")},modifier=Modifier.weight(1f))else OutlinedTextField(duration,{duration=it},label={Text(if(provider.id=="hf-wan22-i2v")"Duração (0,5–5 s)" else "Duração (0,3–8,5 s)")},modifier=Modifier.weight(1f))}}
             if(!provider.tested&&vm.vault.get("media_test_${provider.id}").isBlank())item{LabeledSwitch("Autorizar teste desta integração experimental",experimental){experimental=it}}
             item{LabeledSwitch("Autorizar envio ao fornecedor escolhido",vm.consent){vm.consent=it;vm.vault.set("remote_consent",it.toString())}}
             item{Button(enabled=prompt.isNotBlank()&&vm.consent&&(provider.tested||experimental||vm.vault.get("media_test_${provider.id}").isNotBlank()),onClick={runCatching{
                 val size=resolution.toInt();val (a,b)=when(aspect){"1:1"->1 to 1;"4:5"->4 to 5;"9:16"->9 to 16;else->16 to 9}
-                val multiple=if(request.kind=="video")32 else if(provider.id=="pollinations-image")1 else 8
+                val multiple=if(provider.id=="hf-zimage")64 else if(request.kind=="video")32 else if(provider.id=="pollinations-image")1 else 8
                 val factor=(size/maxOf(a,b)/multiple*multiple).coerceAtLeast(multiple)
-                val width=a*factor;val height=b*factor
+                val baseWidth=if(provider.id=="hf-zimage")(kotlin.math.round(size.toDouble()*a/maxOf(a,b)/64)*64).toInt().coerceAtLeast(64) else a*factor;val baseHeight=if(provider.id=="hf-zimage")(kotlin.math.round(size.toDouble()*b/maxOf(a,b)/64)*64).toInt().coerceAtLeast(64) else b*factor
+                val scale=if(provider.id=="hf-zimage")maxOf(1.0,512.0/minOf(baseWidth,baseHeight)) else 1.0
+                val width=if(provider.id=="hf-zimage")(kotlin.math.round(baseWidth*scale/64)*64).toInt().coerceIn(512,1024) else baseWidth
+                val height=if(provider.id=="hf-zimage")(kotlin.math.round(baseHeight*scale/64)*64).toInt().coerceIn(512,1024) else baseHeight
                 require(seed.toLong() in 0..Int.MAX_VALUE.toLong()-10){"Seed inválido"};val seconds=duration.toDouble();if(request.kind=="video")provider.video.validate(seconds,reference!=null)
-                vm.generate(provider,prompt,width,height,seed.toLong(),seconds,model,reference,if(request.kind=="image")count.toInt() else 1,request.origin.ifBlank{reference?.optString("conversation").orEmpty()});onSubmit()
+                vm.generate(provider,prompt,width,height,seed.toLong(),seconds,model,reference,if(request.kind=="image")count.toInt() else 1,request.origin.ifBlank{reference?.optString("conversation").orEmpty()},cloudflareSteps.toInt());onSubmit()
             }.onFailure{vm.status=connectionMessage(it)}},modifier=Modifier.fillMaxWidth().testTag("submit-generation")){Icon(Icons.Outlined.AutoAwesome,null);Text(if(request.kind=="image")"Criar imagem" else "Criar vídeo",Modifier.padding(start=8.dp))};Text("Não ativa subscrições, compras de créditos ou faturação. As filas e quotas são do fornecedor. Em LTX as dimensões são ajustadas a múltiplos de 32; a proporção pode aproximar-se.",style=MaterialTheme.typography.labelSmall)}
             item{Spacer(Modifier.height(30.dp))}
         }
