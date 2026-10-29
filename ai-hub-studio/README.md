@@ -1,9 +1,10 @@
-# AI Hub Studio — estúdio multimédia v0.3.3
+# AI Hub Studio — estúdio multimédia v0.3.4
 
 Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente é preservada noutra pasta.
 
-**A v0.3.3 preserva a interface Chat/Imagens/Vídeos/Projetos e o Chat. Acrescenta Z-Image Turbo, diagnóstico Cloudflare e estados/quotas multimédia com reposição quando conhecida.** O relatório separa os testes Android dos testes externos e das integrações experimentais. Não é uma declaração de que toda a plataforma original está concluída.
+**A v0.3.4 renova a interface, permite eliminar relatórios de pedidos terminados e corrige as resoluções pequenas do SDXL Cloudflare.** A preparação visual opcional usa a IA de chat configurada e apresenta uma proposta para revisão. Mantém Chat, Imagens, Vídeos, Projetos, dados, credenciais e fornecedores existentes.
 
+- [Diagnóstico, alterações, testes e instalação v0.3.4](docs/RELATORIO-v0.3.4.md)
 - [Diagnóstico Cloudflare, modelos, quotas, testes e instalação v0.3.3](docs/RELATORIO-v0.3.3.md)
 - [Novidades e utilização da v0.3.2](docs/ALTERACOES-v0.3.2.md)
 - [Testes e entrega da v0.3.2](docs/RELATORIO-v0.3.2.md)
@@ -19,11 +20,13 @@ Cliente Android Kotlin/Compose + servidor PC Windows/Linux. A Sonora existente �
 
 ## Download
 
-[Descarregar APK v0.3.3](https://github.com/efog82/app-videos-musicas/releases/download/aihub-v0.3.3/AI-Hub-Studio-v0.3.3-debug.apk) · [Versão, assinatura e SHA-256](https://github.com/efog82/app-videos-musicas/releases/tag/aihub-v0.3.3)
+[Descarregar APK v0.3.4](https://github.com/efog82/app-videos-musicas/releases/download/aihub-v0.3.4/AI-Hub-Studio-v0.3.4-debug.apk) · [Publicação, assinatura e SHA-256](https://github.com/efog82/app-videos-musicas/releases/tag/aihub-v0.3.4)
 
-É um APK de desenvolvimento (versionCode 6), com a mesma assinatura dos APKs v0.2/v0.3/v0.3.1/v0.3.2 entregues. O CI verifica o certificado antes de publicar. Instale por cima sem desinstalar para preservar dados; uma compilação local com outra chave não atualiza a instalação anterior. O APK v0.1 tinha uma assinatura efémera diferente.
+Android `pt.aihub.studio`, versionCode 7. É um APK de desenvolvimento, com a mesma assinatura dos APKs entregues desde a v0.2. Instale por cima da versão anterior, sem desinstalar, para preservar dados e credenciais. O CI confirma o certificado antes de publicar; uma compilação local com outra chave não instala por cima.
 
-A publicação só ocorre após testes JVM, lint, emuladores Android (incluindo gerações reais), servidor e scripts Windows passarem. Os artefactos da execução incluem também o pacote Windows preservado e os relatórios. Cloudflare sem credenciais continua **sem qualidade visual comprovada**; consultar o relatório antes de interpretar um HTTP 200 como sucesso.
+Na área Imagens ou Vídeos, abra **Pedidos e diagnósticos** para consultar/apagar relatórios. As criações são independentes desses registos. Na Cloudflare, o SDXL usa tamanhos adequados próximos de 1 MP; HTTP 200 ou hashes iguais não comprovam qualidade visual. [Leia o diagnóstico e as limitações](docs/RELATORIO-v0.3.4.md).
+
+Para compilar: JDK 17, Android SDK 35 e Gradle 8.10.2; em `ai-hub-studio/android`, executar `gradle :core:test :app:assembleDebug :app:lintDebug`. O servidor PC e as ferramentas anteriores continuam opcionais para os fornecedores online.
 
 
 ## Novo vídeo v0.3.1

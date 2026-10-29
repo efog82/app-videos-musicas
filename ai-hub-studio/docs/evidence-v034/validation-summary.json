@@ -1,0 +1,57 @@
+{
+  "version": "0.3.4",
+  "versionCode": 7,
+  "base": "07ff913522cc6c6e22deeaf295976aceb189acb2",
+  "testedCommit": "76a20a2e4e6fd802589d3b0a2cb4d47a43dd5505",
+  "appCodeUnchangedFrom": "44150fc6d2d334a0b739e7d512b1185bc4399336",
+  "workflow": 40857693697,
+  "jvm": {
+    "tests": 18,
+    "failures": 0,
+    "errors": 0
+  },
+  "android": {
+    "api30_regression": 15,
+    "api30_zimage_real": 1,
+    "api35_photo_picker": 1,
+    "failures": 0,
+    "skipped": 0
+  },
+  "cloudflare": {
+    "realGenerationAfterFix": "NOT_TESTED_NO_ACCOUNT_ACCESS",
+    "sourceReport": "user-provided summary",
+    "oldPortrait": [
+      288,
+      512
+    ],
+    "newPortrait": [
+      768,
+      1344
+    ],
+    "steps": 20,
+    "guidance": 7.5,
+    "fluxResolutionChanged": false
+  },
+  "apk": {
+    "bytes": 21220875,
+    "sha256": "9b73f3876290ae8157b140fae9b1a6768c876f29d3639f5e340bbef727378a63",
+    "certificateSha256": "9f2c433083b8383e49c1da36b28adaa758c60122f1d410f2025efce77875d23b"
+  },
+  "preserved": [
+    "DirectAi.kt",
+    "LocalData.kt",
+    "LegacyActivity.kt",
+    "ImageLibrary.kt",
+    "MediaProviders.kt",
+    "Sonora",
+    "icons",
+    "server"
+  ],
+  "newNativeChecks": [
+    "failed_report_delete_confirmation_and_persistence",
+    "active_and_related_data_protection",
+    "cancellation_completion_guard",
+    "sdxl_form_dimensions_before_request",
+    "exact_original_diagnostic_zip_and_base64_whitespace"
+  ]
+}

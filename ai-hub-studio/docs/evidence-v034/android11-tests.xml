@@ -1,0 +1,17 @@
+<testsuite name="pt.aihub.studio.ImageLibraryTest" tests="15" failures="0" errors="0" skipped="0" time="121.461" timestamp="2026-10-29T10:35:18" hostname="localhost">
+  <testcase name="confirmationCancelsThenDeletesPrivateImageAndAllHistoryReferencesOnly" classname="pt.aihub.studio.ImageLibraryTest" time="2.814" />
+  <testcase name="originalBytesAndReferenceUploadArePreservedAcrossRecreation" classname="pt.aihub.studio.ImageLibraryTest" time="0.934" />
+  <testcase name="sharedCopiesAndPathsOutsideManagedMediaAreNotDeletedPrematurely" classname="pt.aihub.studio.ImageLibraryTest" time="0.866" />
+  <testcase name="realAnonymousProviderDiscoversModelAndAnswersQuestion" classname="pt.aihub.studio.LiveProviderTest" time="64.283" />
+  <testcase name="quotaPersistsPerModelAndCountdownUpdatesWithoutNetwork" classname="pt.aihub.studio.MediaAuditTest" time="2.093" />
+  <testcase name="cloudflareJsonAndBinaryPreserveOriginalBytesAndDisplayedPixels" classname="pt.aihub.studio.MediaAuditTest" time="0.457" />
+  <testcase name="realImagesAndImageToVideoAppearWithoutExportThenPersist" classname="pt.aihub.studio.MultimodalLiveTest" time="24.452" />
+  <testcase name="localProjectSurvivesActivityRecreationAndCanBeUsedInChat" classname="pt.aihub.studio.OfflineFlowTest" time="1.215" />
+  <testcase name="actualAndroidToCompanionTlsAndAuthentication" classname="pt.aihub.studio.PcTlsTest" time="2.614" />
+  <testcase name="failedImageAndVideoReportsCanBeCancelledThenDeletedAndStayDeleted" classname="pt.aihub.studio.StudioRevisionTest" time="1.663" />
+  <testcase name="diagnosticBundleContainsExactOriginalAndDecoderAcceptsWhitespaceBase64" classname="pt.aihub.studio.StudioRevisionTest" time="0.301" />
+  <testcase name="cancellationMustFinishBeforeItsReportCanBeDeleted" classname="pt.aihub.studio.StudioRevisionTest" time="0.512" />
+  <testcase name="activeReportsAreProtectedAndCompletedReportDeletionPreservesAllOtherData" classname="pt.aihub.studio.StudioRevisionTest" time="0.381" />
+  <testcase name="cloudflareSdxlFormShowsCorrectInferenceResolutionBeforeAnyRequest" classname="pt.aihub.studio.StudioRevisionTest" time="1.495" />
+  <testcase name="wanImageToVideoIsReceivedPlayedExportedAndRetainedInProject" classname="pt.aihub.studio.WanVideoLiveTest" time="16.894" />
+</testsuite>
