@@ -148,7 +148,7 @@ class StudioModel(app:Application):AndroidViewModel(app) {
     fun deleteTask(id:String){
         viewModelScope.launch {
             try {
-                require(workers[id]?.isActive!=true){"O pedido ainda está a terminar. Aguarde antes de eliminar o relatório."}
+                require(workers[id]?.isCompleted!=false){"O pedido ainda está a terminar. Aguarde antes de eliminar o relatório."}
                 withContext(Dispatchers.IO){GenerationHistory(db).remove(id)}
                 workers.remove(id);refresh();status="Relatório eliminado. As criações e os projetos foram mantidos."
             }catch(e:Exception){status=connectionMessage(e)}

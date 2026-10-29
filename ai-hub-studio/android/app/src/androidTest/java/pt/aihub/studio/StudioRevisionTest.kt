@@ -10,7 +10,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.io.File
 import java.util.zip.ZipInputStream
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 
 /** Explicit fixtures for history/UI/decoder tests; no simulated provider success. */
 class StudioRevisionTest {
@@ -77,4 +77,25 @@ class StudioRevisionTest {
         assertArrayEquals(bytes,archive["original.png"]);assertEquals(CloudflareImages.hash(bytes),JSONObject(archive["diagnostico.json"]!!.toString(Charsets.UTF_8)).getString("imageSha256"))
         file.delete();println("FIXTURE_ONLY: Base64 whitespace and exact original+diagnostic share bundle; no Cloudflare inference")
     }
+    @Test fun cancellationMustFinishBeforeItsReportCanBeDeleted(){
+        val vm=compose.activity.studio;val id=task("image","cancelled")
+        val parent=Job();val ready=CompletableDeferred<Unit>();val finishing=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
+        val scope=CoroutineScope(Dispatchers.Default+parent)
+        scope.launch{try{ready.complete(Unit);awaitCancellation()}finally{withContext(NonCancellable){finishing.complete(Unit);release.await()}}}
+        runBlocking{ready.await();parent.cancel();finishing.await()}
+        assertFalse(parent.isActive);assertFalse(parent.isCompleted)
+        // Explicit coroutine lifecycle fixture; this is not a fake provider generation.
+        @Suppress("UNCHECKED_CAST")
+        val workers=StudioModel::class.java.getDeclaredField("workers").apply{isAccessible=true}.get(vm) as MutableMap<String,Job>
+        compose.runOnIdle{workers[id]=parent;vm.refresh();vm.deleteTask(id)}
+        try{
+            compose.waitUntil(5000){vm.status.contains("a terminar")}
+            assertTrue(vm.db.list("generation").any{it.getString("id")==id})
+            release.complete(Unit);runBlocking{parent.join()}
+            compose.runOnIdle{vm.deleteTask(id)}
+            compose.waitUntil(5000){vm.tasks.none{it.getString("id")==id}}
+            assertFalse(vm.db.list("generation").any{it.getString("id")==id})
+        }finally{release.complete(Unit);runBlocking{parent.join()};workers.remove(id);vm.db.delete(id)}
+    }
+
 }
