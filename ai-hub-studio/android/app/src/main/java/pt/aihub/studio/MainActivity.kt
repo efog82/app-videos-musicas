@@ -98,7 +98,7 @@ class MainActivity:ComponentActivity() {
             ListItem(headlineContent={Text(conversation.optString("title","Conversa"),maxLines=2,overflow=TextOverflow.Ellipsis)},modifier=Modifier.clickable{vm.openConversation(conversation);scope.launch{drawer.close()}},trailingContent={IconButton(onClick={vm.deleteConversation(conversation.getString("id"))}){Icon(Icons.Outlined.Delete,"Eliminar conversa")}})
         }}
     }}) {
-        Scaffold(topBar={TopAppBar(title={Column{Text("AI Hub Studio",style=MaterialTheme.typography.titleLarge);Text(if(vm.tab=="Chat")"Um espaço para pensar e criar" else if(vm.tab=="Imagens")"Cria · pré-visualiza · organiza" else if(vm.tab=="Vídeos")"Anima · reproduz · partilha" else "O teu espaço criativo",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)}},navigationIcon={IconButton(onClick={scope.launch{drawer.open()}}){Icon(Icons.Outlined.Menu,"Histórico")}},actions={
+        Scaffold(topBar={TopAppBar(title={Column{Text("AI Hub",style=MaterialTheme.typography.titleLarge,maxLines=1,overflow=TextOverflow.Ellipsis);Text(vm.tab,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)}},navigationIcon={IconButton(onClick={scope.launch{drawer.open()}}){Icon(Icons.Outlined.Menu,"Histórico")}},actions={
             IconButton(onClick={taskHistoryKind=null;taskHistory=true},modifier=Modifier.testTag("requests-button")){Icon(Icons.Outlined.ReceiptLong,"Pedidos e diagnósticos")}
             IconButton(onClick={vm.newChat();vm.tab="Chat"}){Icon(Icons.Outlined.Edit,"Nova conversa")}
             IconButton(onClick={vm.settings=true}){Icon(Icons.Outlined.Tune,"Fornecedores e definições")}
