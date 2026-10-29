@@ -28,6 +28,8 @@ import kotlinx.coroutines.launch
     var cfAccount by remember{mutableStateOf(vm.vault.get("media_cloudflare_account"))}
     var cfFree by remember{mutableStateOf(vm.vault.get("media_cloudflare_free")=="true")}
     var testing by remember{mutableStateOf("")}
+    var compareCloudflare by remember{mutableStateOf(false)}
+    if(compareCloudflare)CloudflareComparisonDialog(onDismiss={compareCloudflare=false},onStart={prompt->compareCloudflare=false;runCatching{vm.compareCloudflare(prompt)}.onFailure{vm.status=connectionMessage(it)}})
     Dialog(onDismissRequest=onDismiss,properties=DialogProperties(usePlatformDefaultWidth=false)){
         Scaffold(topBar={TopAppBar(title={Text("Fornecedores e definições")},navigationIcon={IconButton(onClick=onDismiss){Icon(Icons.Outlined.Close,"Fechar definições")}},actions={IconButton(onClick={vm.theme()}){Icon(if(vm.dark)Icons.Outlined.LightMode else Icons.Outlined.DarkMode,"Alternar tema")}})}){padding->
             LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("providers-settings"),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
@@ -52,6 +54,7 @@ import kotlinx.coroutines.launch
                     Text(p.title,style=MaterialTheme.typography.titleMedium);Text((if(p.kind=="video"){if(p.video.textToVideo)"Vídeo · texto e referência" else "Vídeo · imagem de referência obrigatória"} else "Imagem · texto")+if(p.key)" · chave necessária" else " · acesso público / token opcional",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.labelMedium)
                     Text(p.note,style=MaterialTheme.typography.bodySmall)
                     Text(if(p.tested)"Geração real confirmada em teste público; quota atual pode variar" else "Implementado, geração ainda não comprovada nesta conta",style=MaterialTheme.typography.labelSmall)
+                    if(p.id=="cloudflare")OutlinedButton(onClick={compareCloudflare=true}){Text("Comparar qualidade Cloudflare · 3 pedidos")}
                     if(p.id=="cloudflare")OutlinedButton(onClick={runCatching{context.startActivity(cloudflareDiagnosticShare(context))}.onFailure{vm.status=connectionMessage(it)}}){Text("Partilhar último diagnóstico Cloudflare")}
                     p.models.forEach{model->Text(model,style=MaterialTheme.typography.labelMedium);MediaStatusLabel(vm,p.id,model)}
                     OutlinedButton(enabled=testing.isBlank(),onClick={testing=p.id;scope.launch{try{vm.status=OnlineMedia(context,vm.vault).test(p)}catch(e:Exception){vm.status=connectionMessage(e)}finally{testing=""}}}){Text(if(testing==p.id)"A testar…" else "Testar API (sem gerar)")}

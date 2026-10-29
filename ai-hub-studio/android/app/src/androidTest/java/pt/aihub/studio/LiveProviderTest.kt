@@ -24,5 +24,11 @@ class LiveProviderTest {
         assertTrue(answer.contains("4"))
         println("REAL_NETWORK_UI_TEST v0.3: actual provider response: $answer — PASS")
         assertTrue(vm.db.list("conversation").isNotEmpty())
+        val history=vm.messages.map{it.toString()};val stored=vm.db.list("conversation").map{it.toString()}
+        val visual=kotlinx.coroutines.runBlocking{kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main){vm.prepareVisualDescription("Prepara uma imagem de uma galáxia espiral realista inspirada nas imagens infravermelhas do telescópio James Webb. Quero braços bem definidos, estrelas e poeira cósmica. Não quero uma explicação nem um storyboard com várias cenas.","image")}}
+        assertTrue(visual.length in 30..1200);assertTrue(visual.contains("galax",true))
+        assertEquals(history,vm.messages.map{it.toString()});assertEquals(stored,vm.db.list("conversation").map{it.toString()})
+        java.io.File(compose.activity.filesDir,"visual-description-real.json").writeText(org.json.JSONObject().put("type","REAL_CHAT_INFERENCE_NOT_IMAGE_GENERATION").put("model",vm.selection).put("visualDescription",visual).put("conversationUnchanged",true).toString(2))
+        println("REAL_VISUAL_DESCRIPTION_PASS: separate inference, visual galaxy description and original conversation preserved")
     }
 }

@@ -22,6 +22,7 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
             quota.put(activeProvider,activeModel,pt.aihub.core.MediaQuotaParser.parse(activeProvider,status,headers,body,System.currentTimeMillis()))
         }
     }
+    var lastCloudflareDiagnostic:JSONObject?=null;private set
     private var nextClassic=0L
     private var cancellation:(suspend()->Unit)?=null
     var cancellationSupported=false;private set
@@ -71,6 +72,7 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
             throw e
         }
         activeProvider=p.id;activeModel=model
+        lastCloudflareDiagnostic=null
         cancellation=null;cancellationSupported=false
         val directory=File(context.filesDir,"media").apply{mkdirs()}
         val file=File(directory,UUID.randomUUID().toString()+if(p.kind=="video")".mp4" else ".jpg")
@@ -106,6 +108,7 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                     http.call(p.base+"/accounts/$account/ai/run/$model","POST",auth(p),body.toString().toByteArray()){c->
                         val evidence=CloudflareImages.read(c.inputStream,c.contentType.orEmpty(),file)
                         evidence.put("provider",p.id).put("modelRequested",model).put("modelEndpoint",model).put("modelReportedByApi",JSONObject.NULL).put("request",body).put("http",c.responseCode).put("created",System.currentTimeMillis()).put("headers",JSONObject(lastResponseHeaders)).put("qualityAssessment","Não avaliada automaticamente; comparar visualmente o original com o pedido")
+                        lastCloudflareDiagnostic=JSONObject(evidence.toString())
                         val diagnostics=File(context.filesDir,"media-diagnostics").apply{mkdirs()}
                         File(diagnostics,file.nameWithoutExtension+".json").writeText(evidence.toString(2))
                     }

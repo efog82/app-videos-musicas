@@ -115,7 +115,7 @@ class StudioModel(app:Application):AndroidViewModel(app) {
     fun saveProject(name:String,context:String){require(name.isNotBlank());db.save("project",JSONObject().put("name",name).put("context",context));refresh()}
     fun assignAsset(asset:JSONObject,project:String){db.save("asset",JSONObject(asset.toString()).put("project",project),asset.getString("id"));refresh()}
     private fun saveTask(task:JSONObject){db.save("generation",task,task.getString("id"));tasks=db.list("generation")}
-    private fun updateTask(id:String,state:String,message:String){val t=tasks.firstOrNull{it.getString("id")==id}?:return;if(t.optString("state")=="cancelled"&&state=="running")return;saveTask(JSONObject(t.toString()).put("state",state).put("message",message))}
+    private fun updateTask(id:String,state:String,message:String){val t=tasks.firstOrNull{it.getString("id")==id}?:return;if(t.optString("state") in setOf("done","failed","cancelled","interrupted")&&state in setOf("queued","running"))return;saveTask(JSONObject(t.toString()).put("state",state).put("message",message))}
     fun generate(provider:MediaProvider,prompt:String,width:Int,height:Int,seed:Long,duration:Double,model:String,reference:JSONObject?,count:Int,origin:String="",cloudflareSteps:Int=8) {
         if(!consent){status="Autorize o envio de conteúdo ao fornecedor nas definições";settings=true;return}
         require(count in 1..10){"Escolha entre 1 e 10 pedidos por lote para controlar a quota"}
@@ -127,7 +127,7 @@ class StudioModel(app:Application):AndroidViewModel(app) {
                     queue.withLock {
                         updateTask(id,"running","A contactar o fornecedor…")
                         val file=mediaClient.generate(provider,prompt,width,height,seed+offset,duration,model,reference?.let{File(it.getString("path"))},cloudflareSteps){message->handler.post{updateTask(id,"running",message)}}
-                        val asset=withContext(Dispatchers.IO){createAsset(file,provider.kind,prompt,provider.id,project,origin,seed+offset,true,JSONObject().put("model",model).put("cloudflareSteps",if(provider.id=="cloudflare"&&model==pt.aihub.core.CloudflareImageRequest.FLUX)cloudflareSteps else JSONObject.NULL).put("seedApplied",!(provider.id=="cloudflare"&&model==pt.aihub.core.CloudflareImageRequest.FLUX)))}
+                        val asset=withContext(Dispatchers.IO){createAsset(file,provider.kind,prompt,provider.id,project,origin,seed+offset,true,JSONObject().put("model",model).put("cloudflareDiagnostic",mediaClient.lastCloudflareDiagnostic?:JSONObject.NULL).put("cloudflareSteps",if(provider.id=="cloudflare"&&model==pt.aihub.core.CloudflareImageRequest.FLUX)cloudflareSteps else JSONObject.NULL).put("seedApplied",!(provider.id=="cloudflare"&&model==pt.aihub.core.CloudflareImageRequest.FLUX)))}
                         if(origin.isNotBlank()) {
                             val c=db.list("conversation").firstOrNull{it.getString("id")==origin}
                             if(c!=null) {
@@ -145,6 +145,37 @@ class StudioModel(app:Application):AndroidViewModel(app) {
         }
     }
     fun cancelTask(id:String){updateTask(id,"cancelled","Cancelado localmente; é enviado cancelamento ao fornecedor quando suportado");workers[id]?.cancel()}
+    fun deleteTask(id:String){
+        viewModelScope.launch {
+            try {
+                require(workers[id]?.isActive!=true){"O pedido ainda está a terminar. Aguarde antes de eliminar o relatório."}
+                withContext(Dispatchers.IO){GenerationHistory(db).remove(id)}
+                workers.remove(id);refresh();status="Relatório eliminado. As criações e os projetos foram mantidos."
+            }catch(e:Exception){status=connectionMessage(e)}
+        }
+    }
+    suspend fun prepareVisualDescription(text:String,kind:String):String {
+        require(text.isNotBlank()&&text.length<=20000){"Escolha uma cena ou um texto até 20 000 caracteres"}
+        require(consent){"Autorize o envio à IA de chat nas definições"}
+        require(selection.isNotBlank()||ai.automaticModels().isNotEmpty()){"Configure uma IA de chat para preparar a descrição, ou edite-a manualmente"}
+        val answer=ai.chat(selection,listOf(JSONObject().put("role","system").put("content",pt.aihub.core.VisualPromptRules.system(kind)),JSONObject().put("role","user").put("content",text)),consent,false)
+        return pt.aihub.core.VisualPromptRules.reviewedCandidate(answer)
+    }
+    fun compareCloudflare(prompt:String="A synthetic infrared-inspired image of a realistic spiral galaxy, James Webb telescope visual style, clearly defined spiral arms, dense stellar core, fine dust lanes, distant stars, deep black background, natural astronomical detail, no text"){
+        require(consent){"Autorize o envio aos fornecedores nas definições"}
+        require(vault.get("media_cloudflare_free")=="true"){"Guarde primeiro a confirmação de uma conta Cloudflare Workers Free"}
+        require(vault.get("media_cloudflare_key").isNotBlank()&&vault.get("media_cloudflare_account").matches(Regex("[a-fA-F0-9]{32}"))){"Guarde primeiro o Account ID e o token Cloudflare"}
+        val provider=mediaProviders.first{it.id=="cloudflare"}
+        generate(provider,prompt,512,512,424242,2.0,pt.aihub.core.CloudflareImageRequest.FLUX,null,1,cloudflareSteps=4)
+        generate(provider,prompt,512,512,424242,2.0,pt.aihub.core.CloudflareImageRequest.FLUX,null,1,cloudflareSteps=8)
+        generate(provider,prompt,1024,1024,424242,2.0,pt.aihub.core.CloudflareImageRequest.SDXL,null,1)
+        tab="Imagens";settings=false;status="Comparação pedida: FLUX 4 passos, FLUX 8 passos e SDXL. Consome até 3 gerações da quota gratuita; resultados em Imagens."
+    }
+    fun markCloudflareResult(asset:JSONObject,abstract:Boolean){
+        require(asset.optString("provider")=="cloudflare")
+        db.save("asset",JSONObject(asset.toString()).put("qualityFeedback",if(abstract)"abstract_reported_by_user" else "matches_prompt_reported_by_user"),asset.getString("id"));refresh()
+        status=if(abstract)"Resultado assinalado como abstrato. Pode partilhar o original com o diagnóstico; nenhum pedido foi repetido." else "Avaliação guardada. Não foi efetuado nenhum novo pedido."
+    }
     private fun createAsset(input:File,kind:String,prompt:String,provider:String,project:String,origin:String,seed:Long,removeOriginal:Boolean,extra:JSONObject=JSONObject()):JSONObject {
         val hash=input.inputStream().use{stream->val digest=MessageDigest.getInstance("SHA-256");val b=ByteArray(65536);while(true){val n=stream.read(b);if(n<0)break;digest.update(b,0,n)};digest.digest().joinToString(""){"%02x".format(it)}}
         val options=android.graphics.BitmapFactory.Options().apply{inJustDecodeBounds=true}

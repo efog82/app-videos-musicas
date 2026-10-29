@@ -12,6 +12,8 @@ adb exec-out run-as pt.aihub.studio cat /sdcard/Android/data/pt.aihub.studio/fil
 adb exec-out run-as pt.aihub.studio cat /sdcard/Android/data/pt.aihub.studio/files/pc-tls.txt > app/build/reports/androidTests/pc-tls.txt
 adb exec-out run-as pt.aihub.studio cat files/v3-video-preview.png > app/build/reports/androidTests/v3-video-preview.png
 adb exec-out run-as pt.aihub.studio cat files/wan-v031-test.json > app/build/reports/androidTests/wan-v031-test.json
+adb exec-out run-as pt.aihub.studio cat files/visual-description-real.json > app/build/reports/androidTests/visual-description-real.json
+adb exec-out run-as pt.aihub.studio cat files/ui034-history-fixture.png > app/build/reports/androidTests/ui034-history-fixture.png
 adb shell input keyevent 4
 adb exec-out screencap -p > app/build/reports/androidTests/aihub-screen.png
 exit "$TEST_RESULT"

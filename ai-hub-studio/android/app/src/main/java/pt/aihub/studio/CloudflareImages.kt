@@ -21,8 +21,9 @@ object CloudflareImages {
             val encoded=result.optJSONObject("result")?.optString("image").orEmpty()
             require(encoded.isNotBlank()){ "A resposta Cloudflare não contém result.image; não é prova de geração" }
             val data=if(encoded.startsWith("data:image/")){require(encoded.substringBefore(',').contains(";base64"));encoded.substringAfter(',')} else encoded
-            require(data.matches(Regex("[A-Za-z0-9+/=\\r\\n\\t ]+"))){"Base64 de imagem inválido"}
-            Base64.decode(data,Base64.DEFAULT)
+            val normalized=data.filterNot{it.isWhitespace()}
+            require(normalized.matches(Regex("[A-Za-z0-9+/=]+"))){"Base64 de imagem inválido"}
+            Base64.decode(normalized,Base64.DEFAULT)
         }else{require(contentType.startsWith("image/",true)||contentType.startsWith("application/octet-stream",true)){"Content-Type Cloudflare inesperado: ${contentType.take(100)}"};wire}
         require(image.isNotEmpty()){ "A Cloudflare devolveu uma imagem vazia" }
         val bounds=BitmapFactory.Options().apply{inJustDecodeBounds=true};BitmapFactory.decodeByteArray(image,0,image.size,bounds)

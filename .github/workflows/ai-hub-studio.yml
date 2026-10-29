@@ -93,10 +93,10 @@ jobs:
       - name: Verificar assinatura e preparar download
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/AI-Hub-Studio-v0.3.3-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs dist/AI-Hub-Studio-v0.3.3-debug.apk | tee dist/APK-signature.txt
+          cp app/build/outputs/apk/debug/app-debug.apk dist/AI-Hub-Studio-v0.3.4-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs dist/AI-Hub-Studio-v0.3.4-debug.apk | tee dist/APK-signature.txt
           grep -F '9f2c433083b8383e49c1da36b28adaa758c60122f1d410f2025efce77875d23b' dist/APK-signature.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging dist/AI-Hub-Studio-v0.3.3-debug.apk | head -n 1
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging dist/AI-Hub-Studio-v0.3.4-debug.apk | head -n 1
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -272,7 +272,7 @@ jobs:
           path: ai-hub-studio/AI-Hub-Studio-PC-Windows.zip
 
   release:
-    name: Publicar APK validado AI Hub v0.3.3
+    name: Publicar APK validado AI Hub v0.3.4
     needs: [server, android, android-device, android-picker, android-zimage, windows]
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
@@ -290,14 +290,14 @@ jobs:
           SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           cat > release/notes.md <<'EOF'
-          AI Hub Studio v0.3.3 · Android · APK de desenvolvimento, compatível com a assinatura anterior.
+          AI Hub Studio v0.3.4 · Android · APK de desenvolvimento, compatível com a assinatura anterior.
 
-          Inclui Z-Image Turbo por API pública, estados persistentes por modelo, contagem local de gerações e reposição com fontes oficiais quando conhecida. Cloudflare FLUX usa apenas prompt e passos (4 ou 8), valida Base64/imagem e guarda diagnóstico privado com hashes. Chat, dados, separadores, modelos anteriores e Sonora preservados.
+          Interface renovada com as mesmas quatro áreas, ações de criação visíveis e histórico de pedidos separado da galeria. Permite eliminar relatórios de pedidos terminados com confirmação, sem apagar criações. Corrige as resoluções pequenas do SDXL Cloudflare para tamanhos próximos de 1 megapíxel, mostra as dimensões antes de gerar e permite preparar uma descrição visual com revisão. Mantém todos os modelos, dados, credenciais e ferramentas avançadas.
 
           Os testes Android incluem geração real, pré-visualização, exportação, partilha, persistência e testes determinísticos de quotas/descodificação. O job de publicação só executa após todas as verificações passarem.
 
-          Cloudflare: não foi possível comprovar a qualidade visual sem credenciais Workers Free. Qwen/LTX 2.3/CogVideoX/Hunyuan não são anunciados como novas integrações funcionais. Não existe promessa de quotas ou disponibilidade ilimitadas. Os tokens Hugging Face PRO/organizações são recusados para impedir consumo automático de créditos; utilize acesso anónimo ou conta Free.
+          Cloudflare: não foi possível comprovar a qualidade visual sem credenciais Workers Free. 288×512 foi identificado como resolução inadequada para SDXL base; a correção é testada por parâmetros e interface, sem garantia de qualidade visual Cloudflare antes de uma geração real. Não existe promessa de quotas ou disponibilidade ilimitadas. Os tokens Hugging Face PRO/organizações são recusados para impedir consumo automático de créditos; utilize acesso anónimo ou conta Free.
 
           Instale o APK por cima da versão anterior, sem desinstalar. Não é necessário PC para as gerações online.
           EOF
-          gh release create aihub-v0.3.3 --target "$SOURCE_SHA" --prerelease --title "AI Hub Studio v0.3.3" --notes-file release/notes.md release/*.apk release/SHA256SUMS.txt release/APK-signature.txt
+          gh release create aihub-v0.3.4 --target "$SOURCE_SHA" --prerelease --title "AI Hub Studio v0.3.4" --notes-file release/notes.md release/*.apk release/SHA256SUMS.txt release/APK-signature.txt

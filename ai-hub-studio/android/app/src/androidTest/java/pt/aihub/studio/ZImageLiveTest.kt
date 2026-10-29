@@ -43,9 +43,12 @@ class ZImageLiveTest {
         compose.activity.contentResolver.openInputStream(uri)!!.use{assertArrayEquals(file.readBytes(),it.readBytes())}
         File(compose.activity.filesDir,"zimage-v033-test.json").writeText(JSONObject().put("type","REAL_ANDROID_GENERATION").put("provider","hf-zimage").put("width",bounds.outWidth).put("height",bounds.outHeight).put("bytes",file.length()).put("sha256",CloudflareImages.hash(file.readBytes())).put("preview",true).put("galleryExactBytes",true).put("shareExactBytes",true).toString(2))
         file.copyTo(File(compose.activity.filesDir,"zimage-v033-original.png"),overwrite=true)
+        InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()?.let{bitmap->File(compose.activity.filesDir,"ui034-preview-real.png").outputStream().use{bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}}
         compose.onNodeWithContentDescription("Fechar pré-visualização").performClick();compose.activityRule.scenario.recreate()
         assertTrue(compose.activity.studio.assets.any{it.getString("id")==asset.getString("id")})
         assertEquals(pt.aihub.core.MediaAvailability.AVAILABLE,compose.activity.studio.mediaStatus.get("hf-zimage","Tongyi-MAI/Z-Image-Turbo").state)
+        compose.onNodeWithTag("nav-Imagens").performClick();compose.waitForIdle()
+        InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()?.let{bitmap->File(compose.activity.filesDir,"ui034-gallery-real.png").outputStream().use{bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}}
         println("REAL_ZIMAGE_PASS: API inference, original 512×512 PNG, integrated preview, gallery and shared exact bytes, persistent history and quota state")
     }
 }

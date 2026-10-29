@@ -57,8 +57,7 @@ import java.util.UUID
 class MainActivity:ComponentActivity() {
     val studio:StudioModel by viewModels()
     override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);setContent{
-        val colors=if(studio.dark)darkColorScheme(primary=Color(0xFF75DBCA),secondary=Color(0xFFBBA9F5),background=Color(0xFF0E1319),surface=Color(0xFF171F29),surfaceVariant=Color(0xFF232E3B)) else lightColorScheme(primary=Color(0xFF006B61),secondary=Color(0xFF6651A1),background=Color(0xFFF8FAFC),surface=Color.White,surfaceVariant=Color(0xFFE9EEF5))
-        MaterialTheme(colorScheme=colors,typography=studioTypography()){StudioApp(studio)}
+        StudioTheme(studio.dark){StudioApp(studio)}
     }}
 }
 
@@ -69,6 +68,8 @@ class MainActivity:ComponentActivity() {
     var historyQuery by remember {mutableStateOf("")};var expanded by remember {mutableStateOf<JSONObject?>(null)}
     var generation by remember {mutableStateOf<GenerationRequest?>(null)}
     var pendingExport by remember {mutableStateOf<JSONObject?>(null)}
+    var taskHistory by remember {mutableStateOf(false)}
+    var taskHistoryKind by remember {mutableStateOf<String?>(null)}
     val saveFile=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")){uri->if(uri!=null)pendingExport?.let{asset->scope.launch{try{context.contentResolver.openOutputStream(uri)!!.use{out->File(asset.getString("path")).inputStream().use{it.copyTo(out)}};vm.status="Ficheiro exportado"}catch(e:Exception){vm.status=connectionMessage(e)}}}}
     fun save(asset:JSONObject){if(Build.VERSION.SDK_INT>=29)scope.launch{try{vm.export(asset);vm.refresh();vm.status="Guardado na galeria Android"}catch(e:Exception){vm.status=connectionMessage(e)}}else{pendingExport=asset;saveFile.launch("AIHub.${File(asset.getString("path")).extension}")}}
     val attach=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null){
@@ -85,6 +86,7 @@ class MainActivity:ComponentActivity() {
     }
     fun requestImage(prompt:String,origin:String=""){generation=GenerationRequest("image",prompt,origin,null)}
     fun animate(asset:JSONObject){generation=GenerationRequest("video",if(asset.optString("source")=="gallery")"" else asset.optString("prompt"),asset.optString("conversation"),asset)}
+    if(taskHistory)TaskHistorySheet(vm,taskHistoryKind,onDismiss={taskHistory=false},onRetry={request->taskHistory=false;generation=request})
     if(vm.settings)ProviderSettings(vm,onDismiss={vm.settings=false})
     generation?.let{request->GenerationSheet(vm,request,onDismiss={generation=null},onSubmit={generation=null})}
     expanded?.let{asset->MediaViewer(asset,onDismiss={expanded=null},onSave={save(asset)},onShare={shareAsset(context,asset)},onAnimate={expanded=null;animate(asset)},onVariation={expanded=null;requestImage(asset.optString("prompt"),asset.optString("conversation"))},onDelete={vm.deleteAsset(asset);expanded=null})}
@@ -96,7 +98,8 @@ class MainActivity:ComponentActivity() {
             ListItem(headlineContent={Text(conversation.optString("title","Conversa"),maxLines=2,overflow=TextOverflow.Ellipsis)},modifier=Modifier.clickable{vm.openConversation(conversation);scope.launch{drawer.close()}},trailingContent={IconButton(onClick={vm.deleteConversation(conversation.getString("id"))}){Icon(Icons.Outlined.Delete,"Eliminar conversa")}})
         }}
     }}) {
-        Scaffold(topBar={TopAppBar(title={Column{Text("AI Hub Studio",style=MaterialTheme.typography.titleLarge);Text(if(vm.tab=="Chat")"Um espaço para pensar e criar" else vm.tab,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)}},navigationIcon={IconButton(onClick={scope.launch{drawer.open()}}){Icon(Icons.Outlined.Menu,"Histórico")}},actions={
+        Scaffold(topBar={TopAppBar(title={Column{Text("AI Hub Studio",style=MaterialTheme.typography.titleLarge);Text(if(vm.tab=="Chat")"Um espaço para pensar e criar" else if(vm.tab=="Imagens")"Cria · pré-visualiza · organiza" else if(vm.tab=="Vídeos")"Anima · reproduz · partilha" else "O teu espaço criativo",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)}},navigationIcon={IconButton(onClick={scope.launch{drawer.open()}}){Icon(Icons.Outlined.Menu,"Histórico")}},actions={
+            IconButton(onClick={taskHistoryKind=null;taskHistory=true},modifier=Modifier.testTag("requests-button")){Icon(Icons.Outlined.ReceiptLong,"Pedidos e diagnósticos")}
             IconButton(onClick={vm.newChat();vm.tab="Chat"}){Icon(Icons.Outlined.Edit,"Nova conversa")}
             IconButton(onClick={vm.settings=true}){Icon(Icons.Outlined.Tune,"Fornecedores e definições")}
         })},bottomBar={Column(Modifier.imePadding()){
@@ -119,9 +122,11 @@ class MainActivity:ComponentActivity() {
                 "Imagens","Vídeos"->{
                     val kind=if(vm.tab=="Imagens")"image" else "video"
                     LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp),modifier=Modifier.testTag("media-gallery")) {
-                        item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column{Text(if(kind=="image")"Imagina. Cria. Explora." else "Dá movimento às tuas ideias.",style=MaterialTheme.typography.titleLarge);Text("Geração online · sem PC",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)};FilledIconButton(onClick={generation=GenerationRequest(kind,"","",null)}){Icon(Icons.Outlined.Add,if(kind=="image")"Gerar imagem" else "Gerar vídeo")}}}
-                        if(kind=="image")item{OutlinedButton(enabled=!vm.importingImage,onClick={galleryPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},modifier=Modifier.fillMaxWidth().testTag("choose-gallery")){Icon(Icons.Outlined.PhotoLibrary,null);Text("Escolher da galeria",Modifier.padding(start=8.dp))};if(vm.importingImage)LinearProgressIndicator(Modifier.fillMaxWidth())}
-                        items(vm.tasks.filter{it.optString("kind")==kind&&it.optString("state")!="done"}.take(10),key={it.getString("id")}){TaskCard(it,onCancel={vm.cancelTask(it.getString("id"))},onRetry={generation=requestFromTask(it,vm.assets)})}
+                        item {CreativeHeader(kind,vm.assets.count{it.optString("kindMedia")==kind},onCreate={generation=GenerationRequest(kind,"","",null)})}
+                        if(kind=="image")item{OutlinedButton(enabled=!vm.importingImage,onClick={galleryPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},modifier=Modifier.fillMaxWidth().testTag("choose-gallery"),shape=RoundedCornerShape(16.dp),contentPadding=PaddingValues(14.dp)){Icon(Icons.Outlined.PhotoLibrary,null);Text("Escolher da galeria",Modifier.padding(start=8.dp))};if(vm.importingImage)LinearProgressIndicator(Modifier.fillMaxWidth())}
+                        item{RequestOverview(vm.tasks.filter{it.optString("kind")==kind},onOpen={taskHistoryKind=kind;taskHistory=true})}
+                        items(vm.tasks.filter{it.optString("kind")==kind&&it.optString("state") in listOf("queued","running")},key={it.getString("id")}){task->TaskCard(task,onCancel={vm.cancelTask(task.getString("id"))},onRetry={generation=requestFromTask(task,vm.assets)},onDelete={vm.deleteTask(task.getString("id"))})}
+                        if(vm.assets.any{it.optString("kindMedia")==kind})item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("As tuas criações",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium);Text("Toca para abrir",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
                         if(vm.assets.none{it.optString("kindMedia")==kind})item {EmptyCard(if(kind=="image")"A tua galeria começa com uma ideia" else "Cria um clip a partir de texto ou de uma imagem","Os resultados aparecem aqui e ficam guardados no Android.",Icons.Outlined.AutoAwesome)}
                         items(vm.assets.filter{it.optString("kindMedia")==kind},key={it.getString("id")}){asset->AssetCard(asset,onOpen={expanded=asset},onAnimate={animate(asset)},onVariation={requestImage(asset.optString("prompt"),asset.optString("conversation"))},onSave={save(asset)},onShare={shareAsset(context,asset)},onProject={AssetProjectMenu(vm,asset)},onDelete={vm.deleteAsset(asset)})}
                     }
@@ -168,7 +173,7 @@ class MainActivity:ComponentActivity() {
                 }
             }
         }
-        items(vm.tasks.filter{it.optString("conversation")==vm.conversationId&&it.optString("state") in listOf("queued","running","failed")}){task->TaskCard(task,onCancel={vm.cancelTask(task.getString("id"))},onRetry={onRetry(requestFromTask(task,vm.assets))})}
+        items(vm.tasks.filter{it.optString("conversation")==vm.conversationId&&it.optString("state") in listOf("queued","running","failed")}){task->TaskCard(task,onCancel={vm.cancelTask(task.getString("id"))},onRetry={onRetry(requestFromTask(task,vm.assets))},onDelete={vm.deleteTask(task.getString("id"))})}
         if(vm.chatBusy)item{Row(Modifier.padding(10.dp),verticalAlignment=Alignment.CenterVertically){CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp);Text("A pensar…",Modifier.padding(start=12.dp),color=MaterialTheme.colorScheme.secondary)}}
         item{Spacer(Modifier.height(12.dp))}
     }
