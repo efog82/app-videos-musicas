@@ -26,8 +26,8 @@ import org.json.JSONObject
                 Surface(shape=RoundedCornerShape(14.dp),color=colors.surface.copy(alpha=.8f)){Icon(if(image)Icons.Outlined.AutoAwesome else Icons.Outlined.MovieFilter,null,Modifier.padding(12.dp).size(25.dp),tint=colors.primary)}
                 Column(Modifier.weight(1f).padding(start=12.dp)){Text(if(image)"Estúdio de imagens" else "Estúdio de vídeo",style=MaterialTheme.typography.titleLarge);Text("$results ${if(results==1)"criação" else "criações"} · pré-visualização na app",style=MaterialTheme.typography.labelMedium,color=colors.onSurfaceVariant)}
             }
-            Text(if(image)"Transforma ideias em imagens." else "Dá vida às tuas imagens.",style=MaterialTheme.typography.headlineSmall)
-            Text(if(image)"Descreve o que imaginas, escolhe uma IA e vê o resultado antes de guardar." else "Cria a partir de texto ou anima uma imagem. Duração e qualidade dependem do modelo.",style=MaterialTheme.typography.bodyMedium,color=colors.onSurfaceVariant)
+            if(results==0){Text(if(image)"Transforma ideias em imagens." else "Dá vida às tuas imagens.",style=MaterialTheme.typography.headlineSmall)
+            Text(if(image)"Descreve o que imaginas, escolhe uma IA e vê o resultado antes de guardar." else "Cria a partir de texto ou anima uma imagem. Duração e qualidade dependem do modelo.",style=MaterialTheme.typography.bodyMedium,color=colors.onSurfaceVariant)}
             Button(onClick=onCreate,modifier=Modifier.fillMaxWidth(),contentPadding=PaddingValues(vertical=14.dp),shape=RoundedCornerShape(16.dp)){
                 Icon(Icons.Outlined.Add,if(image)"Gerar imagem" else "Gerar vídeo",Modifier.size(21.dp));Text(if(image)"Criar imagem" else "Criar vídeo",Modifier.padding(start=9.dp),style=MaterialTheme.typography.labelLarge)
             }
