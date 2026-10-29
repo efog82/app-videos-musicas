@@ -1,0 +1,12 @@
+{
+  "test": "REAL_ANDROID_NETWORK",
+  "provider": "hf-wan22-i2v",
+  "reference": "drawn fixture, not an AI output",
+  "durationMs": 2063,
+  "width": 480,
+  "height": 832,
+  "mp4Bytes": 80613,
+  "firstFrameRendered": true,
+  "exportRead": true,
+  "shareUriRead": true
+}

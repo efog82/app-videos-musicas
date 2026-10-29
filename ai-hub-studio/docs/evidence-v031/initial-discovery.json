@@ -1,0 +1,112 @@
+[
+  {
+    "repo": "Wan-AI/Wan2.1",
+    "test": "REAL_API_DISCOVERY",
+    "started": 1793032556.5473933,
+    "stage": "RUNTIME_ERROR",
+    "host": "https://wan-ai-wan2-1.hf.space",
+    "private": false,
+    "ok": false,
+    "error": "Unavailable runtime RUNTIME_ERROR"
+  },
+  {
+    "repo": "zerogpu-aoti/wan2-2-fp8da-aoti",
+    "test": "REAL_API_DISCOVERY",
+    "started": 1793032556.7293167,
+    "stage": "RUNTIME_ERROR",
+    "host": "https://zerogpu-aoti-wan2-2-fp8da-aoti.hf.space",
+    "private": false,
+    "ok": false,
+    "error": "Unavailable runtime RUNTIME_ERROR"
+  },
+  {
+    "repo": "zerogpu-aoti/wan2-2-fp8da-aoti-faster",
+    "test": "REAL_API_DISCOVERY",
+    "started": 1793032556.7848618,
+    "stage": "RUNNING",
+    "host": "https://zerogpu-aoti-wan2-2-fp8da-aoti-faster.hf.space",
+    "private": false,
+    "endpoints": [
+      "/generate_video"
+    ],
+    "ok": true
+  },
+  {
+    "repo": "kaidjuric/cogvideox-5b-text-to-video",
+    "test": "REAL_API_DISCOVERY",
+    "started": 1793032556.5480425,
+    "stage": "RUNNING",
+    "host": "https://kaidjuric-cogvideox-5b-text-to-video.hf.space",
+    "private": false,
+    "endpoints": [
+      "/generate"
+    ],
+    "ok": true
+  },
+  {
+    "repo": "Wan-AI/Wan2.2-S2V",
+    "test": "REAL_API_DISCOVERY",
+    "started": 1793032556.54719,
+    "stage": "RUNNING",
+    "host": "https://wan-ai-wan2-2-s2v.hf.space",
+    "private": false,
+    "endpoints": [
+      "/predict"
+    ],
+    "ok": true
+  },
+  {
+    "repo": "Lightricks/LTX-2-3",
+    "test": "REAL_API_DISCOVERY",
+    "started": 1793032556.546773,
+    "stage": "RUNNING",
+    "host": "https://lightricks-ltx-2-3.hf.space",
+    "private": false,
+    "endpoints": [
+      "/on_image_upload",
+      "/on_highres_toggle",
+      "/generate_video"
+    ],
+    "ok": true
+  },
+  {
+    "repo": "multimodalart/wan2-2-fast-i2v",
+    "test": "REAL_API_DISCOVERY",
+    "started": 1793032557.1070178,
+    "ok": false,
+    "error": "Client error '401 Unauthorized' for url 'https://huggingface.co/api/spaces/multimodalart/wan2-2-fast-i2v'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401"
+  },
+  {
+    "repo": "multimodalart/wan2-2-fast",
+    "test": "REAL_API_DISCOVERY",
+    "started": 1793032557.1032188,
+    "ok": false,
+    "error": "Client error '401 Unauthorized' for url 'https://huggingface.co/api/spaces/multimodalart/wan2-2-fast'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401"
+  },
+  {
+    "repo": "zai-org/CogVideoX-5B-Space",
+    "test": "REAL_API_DISCOVERY",
+    "started": 1793032556.5476437,
+    "stage": "RUNNING",
+    "host": "https://zai-org-cogvideox-5b-space.hf.space",
+    "private": false,
+    "endpoints": [
+      "/generate",
+      "/enhance_prompt_func",
+      "/resize_if_unfit"
+    ],
+    "ok": true
+  },
+  {
+    "repo": "Fhwang/wan2-video-generation",
+    "test": "REAL_API_DISCOVERY",
+    "started": 1793032557.1081538,
+    "stage": "RUNNING",
+    "host": "https://fhwang-wan2-video-generation.hf.space",
+    "private": false,
+    "endpoints": [
+      "/generate_video"
+    ],
+    "ok": true
+  }
+]

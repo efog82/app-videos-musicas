@@ -1,0 +1,11 @@
+{
+  "type": "REAL_ANDROID_GENERATION",
+  "provider": "hf-zimage",
+  "width": 512,
+  "height": 512,
+  "bytes": 322308,
+  "sha256": "db11a5b4ebd0c773985900c51a8fccd3a0d354510f3a8b0896b1f4bb00a9334f",
+  "preview": true,
+  "galleryExactBytes": true,
+  "shareExactBytes": true
+}

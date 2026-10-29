@@ -1,0 +1,6 @@
+{
+  "type": "REAL_CHAT_INFERENCE_NOT_IMAGE_GENERATION",
+  "model": "pollinations|openai-fast",
+  "visualDescription": "Realistic spiral galaxy illuminated by deep infrared glow, with crisply defined arms spiraling from a luminous core, strewn with bright star clusters and veiled dust lanes. Nebular filaments trace dusty arcs, subtle glow revealing star‑forming knots. Warm red‑orange and cool blues dominate, chiaroscuro contrast gives depth, rendered in high‑resolution astrophotography style.",
+  "conversationUnchanged": true
+}

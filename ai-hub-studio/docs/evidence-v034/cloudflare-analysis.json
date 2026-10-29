@@ -1,0 +1,33 @@
+{
+  "source": "user-provided diagnostic summary, not independently inspected JSON/image",
+  "provider": "cloudflare",
+  "requestedModel": "@cf/stabilityai/stable-diffusion-xl-base-1.0",
+  "http": 200,
+  "mime": "image/png",
+  "reportedWidth": 288,
+  "reportedHeight": 512,
+  "matchingHashesReportedByUser": true,
+  "semanticQualityNotAssessed": true,
+  "confirmedCodeIssue": "512px portrait UI produced a 288px short side, below SDXL guidance",
+  "sdxlQualityProfile": {
+    "1:1": [
+      1024,
+      1024
+    ],
+    "4:5_approx": [
+      896,
+      1152
+    ],
+    "9:16_approx": [
+      768,
+      1344
+    ],
+    "16:9_approx": [
+      1344,
+      768
+    ]
+  },
+  "steps": 20,
+  "guidance": 7.5,
+  "cloudflareNewResolutionRealGeneration": "NOT_TESTED_NO_ACCOUNT_ACCESS"
+}

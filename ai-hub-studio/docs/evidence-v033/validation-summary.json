@@ -1,0 +1,48 @@
+{
+  "version": "0.3.3",
+  "versionCode": 6,
+  "base": "c56a05d908300b2b72d4094d0bd7e215e568a55a",
+  "testedCommit": "c5ab923b19930b3583a7f740482d3468deb3f346",
+  "workflow": 40477222494,
+  "jvm": {
+    "tests": 14,
+    "failures": 0,
+    "errors": 0
+  },
+  "android": {
+    "api30_regression": 10,
+    "api30_zimage_real": 1,
+    "api35_picker": 1
+  },
+  "cloudflareRealGeneration": "NOT_TESTED_NO_CREDENTIALS",
+  "hfTokenFreeProGuardRealCredentials": "NOT_TESTED_NO_CREDENTIALS",
+  "newVideoIntegrations": [],
+  "newImageIntegrations": [
+    "hf-zimage"
+  ],
+  "apk": {
+    "name": "AI-Hub-Studio-v0.3.3-debug.apk",
+    "bytes": 21155339,
+    "sha256": "29b0fe1397b486c15c566386dae5692abce6090ae083a69cabd2e818328ff133",
+    "url": "https://github.com/efog82/app-videos-musicas/releases/download/aihub-v0.3.3/AI-Hub-Studio-v0.3.3-debug.apk"
+  },
+  "preservation": {
+    "deletedFiles": [],
+    "outsideAppAndOwnWorkflows": [],
+    "unchanged": [
+      "MainActivity.kt",
+      "DirectAi.kt",
+      "LocalData.kt",
+      "LegacyActivity.kt",
+      "server",
+      "Sonora",
+      "icons"
+    ]
+  },
+  "realResearch": {
+    "firstRun": 40412690962,
+    "zimage512sha256": "5ab8d4f859aa6338812bec230872a164b06cec323b0a68ae3b1e7a273cd45d18",
+    "qwen": "REAL_QUOTA_FAILURE",
+    "additionalDiscovery": 40476788130
+  }
+}

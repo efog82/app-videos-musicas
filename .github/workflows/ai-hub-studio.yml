@@ -1,0 +1,303 @@
+name: AI Hub Studio — APK e testes
+on:
+  push:
+    branches: [main]
+    paths: ['ai-hub-studio/android/**', 'ai-hub-studio/server/**', 'ai-hub-studio/Instalar-e-Iniciar.cmd', '.github/workflows/ai-hub-studio.yml']
+  pull_request:
+    paths: ['ai-hub-studio/android/**', 'ai-hub-studio/server/**', 'ai-hub-studio/Instalar-e-Iniciar.cmd', '.github/workflows/ai-hub-studio.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: aihub-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  server:
+    name: Servidor PC e exportação MP4
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ai-hub-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verificar FFmpeg ou instalar com tempo limitado
+        run: |
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            timeout 180 sudo apt-get update -qq
+            timeout 180 sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -n 1
+      - run: python -m pip install -r server/requirements.txt
+      - name: Testar API, segurança, failover e FFmpeg
+        env:
+          AIHUB_NETWORK_TESTS: '1'
+          AIHUB_TEST_FREE_PLAN: ${{ vars.AIHUB_TEST_FREE_PLAN }}
+          AIHUB_GEMINI_KEY: ${{ secrets.AIHUB_GEMINI_KEY }}
+          AIHUB_GROQ_KEY: ${{ secrets.AIHUB_GROQ_KEY }}
+          AIHUB_OPENROUTER_KEY: ${{ secrets.AIHUB_OPENROUTER_KEY }}
+          AIHUB_MISTRAL_KEY: ${{ secrets.AIHUB_MISTRAL_KEY }}
+        run: python -m unittest discover -s server/tests -v 2>&1 | tee server-tests.txt
+        shell: bash -eo pipefail {0}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: AI-Hub-Studio-relatorio-servidor
+          path: ai-hub-studio/server-tests.txt
+  android:
+    name: Android Kotlin Compose
+    env:
+      AIHUB_DEBUG_KEYSTORE: ${{ github.workspace }}/ai-hub-studio/android/ci-debug.keystore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ai-hub-studio/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Instalar SDK 35
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: actions/cache@v4
+        with:
+          path: ai-hub-studio/android/ci-debug.keystore
+          key: aihub-debug-signing-v2
+      - name: Preparar assinatura de desenvolvimento reutilizável
+        run: |
+          if ! test -f ci-debug.keystore; then
+            keytool -genkeypair -keystore ci-debug.keystore -storepass android -keypass android -alias androiddebugkey -dname 'CN=Android Debug,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 3650
+          fi
+      - name: Compilar, testar e analisar Android
+        run: gradle :core:test :app:assembleDebug :app:lintDebug --stacktrace --no-daemon
+      - name: Resumo dos testes JVM
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          roots=[ET.parse(p).getroot() for p in Path('core/build/test-results').rglob('TEST-*.xml')]
+          print('JVM_TEST_SUMMARY',dict(tests=sum(int(r.get('tests',0)) for r in roots),failures=sum(int(r.get('failures',0)) for r in roots),errors=sum(int(r.get('errors',0)) for r in roots)))
+          PY
+      - name: Verificar assinatura e preparar download
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/AI-Hub-Studio-v0.3.4-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs dist/AI-Hub-Studio-v0.3.4-debug.apk | tee dist/APK-signature.txt
+          grep -F '9f2c433083b8383e49c1da36b28adaa758c60122f1d410f2025efce77875d23b' dist/APK-signature.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging dist/AI-Hub-Studio-v0.3.4-debug.apk | head -n 1
+          sha256sum dist/*.apk > dist/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AI-Hub-Studio-APK
+          path: ai-hub-studio/android/dist/*
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: AI-Hub-Studio-relatorios-Android
+          path: |
+            ai-hub-studio/android/core/build/reports/tests/
+            ai-hub-studio/android/app/build/reports/
+
+  android-device:
+    name: Android — chat e multimédia reais
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: ai-hub-studio/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Iniciar companion PC real para teste Android TLS
+        run: |
+          python -m pip install -r ../server/requirements.txt
+          cd ..
+          python -m server.tests.emulator_host > android/companion-test.log 2>&1 &
+          for attempt in {1..30}; do
+            if test -f android/ci-pairing.json; then break; fi
+            sleep 1
+          done
+          test -f android/ci-pairing.json
+      - name: Permitir aceleração KVM no runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: ai-hub-studio/android
+          script: bash ci-device-test.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: AI-Hub-Studio-testes-emulador
+          path: |
+            ai-hub-studio/android/app/build/reports/androidTests/
+            ai-hub-studio/android/app/build/outputs/androidTest-results/
+
+
+  android-picker:
+    name: Android 15 — Photo Picker e ícone reais
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: ai-hub-studio/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Permitir aceleração KVM no runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: ai-hub-studio/android
+          script: bash ci-picker-test.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: AI-Hub-Studio-PhotoPicker-Android15
+          path: |
+            ai-hub-studio/android/app/build/reports/androidTests/
+            ai-hub-studio/android/app/build/outputs/androidTest-results/
+
+  android-zimage:
+    name: Android — geração Z-Image real
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: ai-hub-studio/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Permitir aceleração KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: ai-hub-studio/android
+          script: bash ci-zimage-test.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: AI-Hub-ZImage-Android-real
+          path: |
+            ai-hub-studio/android/app/build/reports/androidTests/
+            ai-hub-studio/android/app/build/outputs/androidTest-results/
+
+  windows:
+    name: Scripts Windows e servidor
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ai-hub-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validar sintaxe dos scripts Windows
+        shell: pwsh
+        run: |
+          Get-ChildItem server -Filter '*.ps1' | ForEach-Object {
+            $parseErrors=$null
+            $tokens=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$parseErrors)
+            if ($parseErrors.Count) { $parseErrors | Format-List; throw 'Script PowerShell inválido' }
+          }
+      - run: python -m pip install -r server/requirements.txt
+      - name: Testar servidor e TLS no Windows
+        env:
+          AIHUB_NETWORK_TESTS: '1'
+        run: python -m unittest discover -s server/tests -v
+      - name: Preparar instalador e servidor para download
+        shell: pwsh
+        run: |
+          Compress-Archive -Path server,docs,README.md,Instalar-e-Iniciar.cmd -DestinationPath AI-Hub-Studio-PC-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AI-Hub-Studio-PC-Windows
+          path: ai-hub-studio/AI-Hub-Studio-PC-Windows.zip
+
+  release:
+    name: Publicar APK validado AI Hub v0.3.4
+    needs: [server, android, android-device, android-picker, android-zimage, windows]
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: AI-Hub-Studio-APK
+          path: release
+      - name: Publicar versão de teste com APK e assinatura
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          cat > release/notes.md <<'EOF'
+          AI Hub Studio v0.3.4 · Android · APK de desenvolvimento, compatível com a assinatura anterior.
+
+          Interface renovada com as mesmas quatro áreas, ações de criação visíveis e histórico de pedidos separado da galeria. Permite eliminar relatórios de pedidos terminados com confirmação, sem apagar criações. Corrige as resoluções pequenas do SDXL Cloudflare para tamanhos próximos de 1 megapíxel, mostra as dimensões antes de gerar e permite preparar uma descrição visual com revisão. Mantém todos os modelos, dados, credenciais e ferramentas avançadas.
+
+          Os testes Android incluem geração real, pré-visualização, exportação, partilha, persistência e testes determinísticos de quotas/descodificação. O job de publicação só executa após todas as verificações passarem.
+
+          Cloudflare: não foi possível comprovar a qualidade visual sem credenciais Workers Free. 288×512 foi identificado como resolução inadequada para SDXL base; a correção é testada por parâmetros e interface, sem garantia de qualidade visual Cloudflare antes de uma geração real. Não existe promessa de quotas ou disponibilidade ilimitadas. Os tokens Hugging Face PRO/organizações são recusados para impedir consumo automático de créditos; utilize acesso anónimo ou conta Free.
+
+          Instale o APK por cima da versão anterior, sem desinstalar. Não é necessário PC para as gerações online.
+          EOF
+          gh release create aihub-v0.3.4 --target "$SOURCE_SHA" --prerelease --title "AI Hub Studio v0.3.4" --notes-file release/notes.md release/*.apk release/SHA256SUMS.txt release/APK-signature.txt

@@ -1,0 +1,80 @@
+{
+  "android11": {
+    "suite": {
+      "name": "pt.aihub.studio.ImageLibraryTest",
+      "tests": "8",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "79.736",
+      "timestamp": "2026-10-26T21:39:03",
+      "hostname": "localhost"
+    },
+    "cases": [
+      {
+        "name": "confirmationCancelsThenDeletesPrivateImageAndAllHistoryReferencesOnly",
+        "classname": "pt.aihub.studio.ImageLibraryTest",
+        "time": "2.559"
+      },
+      {
+        "name": "originalBytesAndReferenceUploadArePreservedAcrossRecreation",
+        "classname": "pt.aihub.studio.ImageLibraryTest",
+        "time": "0.872"
+      },
+      {
+        "name": "sharedCopiesAndPathsOutsideManagedMediaAreNotDeletedPrematurely",
+        "classname": "pt.aihub.studio.ImageLibraryTest",
+        "time": "0.407"
+      },
+      {
+        "name": "realAnonymousProviderDiscoversModelAndAnswersQuestion",
+        "classname": "pt.aihub.studio.LiveProviderTest",
+        "time": "33.091"
+      },
+      {
+        "name": "realImagesAndImageToVideoAppearWithoutExportThenPersist",
+        "classname": "pt.aihub.studio.MultimodalLiveTest",
+        "time": "17.473"
+      },
+      {
+        "name": "localProjectSurvivesActivityRecreationAndCanBeUsedInChat",
+        "classname": "pt.aihub.studio.OfflineFlowTest",
+        "time": "1.365"
+      },
+      {
+        "name": "actualAndroidToCompanionTlsAndAuthentication",
+        "classname": "pt.aihub.studio.PcTlsTest",
+        "time": "1.657"
+      },
+      {
+        "name": "wanImageToVideoIsReceivedPlayedExportedAndRetainedInProject",
+        "classname": "pt.aihub.studio.WanVideoLiveTest",
+        "time": "21.967"
+      }
+    ]
+  },
+  "android15": {
+    "suite": {
+      "name": "pt.aihub.studio.GalleryPickerUiTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "7.62",
+      "timestamp": "2026-10-26T21:37:51",
+      "hostname": "localhost"
+    },
+    "cases": [
+      {
+        "name": "systemPhotoPickerImportsOriginalAndShowsPreviewAndReference",
+        "classname": "pt.aihub.studio.GalleryPickerUiTest",
+        "time": "7.193"
+      }
+    ]
+  },
+  "core": {
+    "tests": "6",
+    "failures": "0",
+    "ignored": "0"
+  }
+}

@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.gradle/
+**/build/
+local.properties
+*.jks
+*.keystore
+*.key
+*.pem
+.env
+hub.db*
+pairing-token.txt
+files/
+
+.ci-pc/
+ci-pairing.json

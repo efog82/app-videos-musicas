@@ -1,0 +1,41 @@
+name: AI Hub — testes reais de fornecedores multimédia
+on:
+  push:
+    branches: ['ai-hub-studio/implementation']
+    paths: ['ai-hub-studio/scripts/probe_free_media.py', 'ai-hub-studio/scripts/probe_video_031.py', '.github/workflows/ai-hub-media-research.yml']
+  workflow_dispatch:
+    inputs:
+      probe_mode:
+        description: 'discovery-only não consome quota de geração; wan-remaining-budget pede um clip de 2 s'
+        type: choice
+        default: discovery-only
+        options: [discovery-only, wan-remaining-budget, official-cog]
+permissions:
+  contents: read
+jobs:
+  public-services:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: ai-hub-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar verificador de vídeo
+        run: |
+          if ! command -v ffprobe >/dev/null; then
+            timeout 180 sudo apt-get update -qq
+            timeout 180 sudo apt-get install -y ffmpeg
+          fi
+      - run: python -m pip install httpx gradio_client pillow
+      - run: python scripts/probe_video_031.py
+        env:
+          AIHUB_VIDEO_PROBE_MODE: ${{ inputs.probe_mode || 'discovery-only' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: AI-Hub-provas-video-v031
+          path: ai-hub-studio/video-research-031/
