@@ -52,7 +52,7 @@ class StudioRevisionTest {
     @Test fun cloudflareSdxlFormShowsCorrectInferenceResolutionBeforeAnyRequest(){
         val before=compose.activity.studio.tasks.map{it.getString("id")}.toSet()
         compose.runOnIdle{compose.activity.studio.tab="Imagens"}
-        compose.onNodeWithContentDescription("Gerar imagem").performClick();compose.onNodeWithText("Pollinations Classic").performClick();compose.onNodeWithText("Cloudflare Workers AI").performClick()
+        compose.onNodeWithContentDescription("Gerar imagem").performClick();compose.onNode(hasText("Pollinations Classic") and hasAnyAncestor(hasTestTag("generation-form"))).performClick();compose.onNodeWithText("Cloudflare Workers AI").performClick()
         compose.onNodeWithTag("generation-form").performScrollToNode(hasText("@cf/black-forest-labs/flux-1-schnell"))
         compose.onNodeWithText("@cf/black-forest-labs/flux-1-schnell").performClick();compose.onNodeWithText("@cf/stabilityai/stable-diffusion-xl-base-1.0").performClick()
         compose.onNodeWithTag("generation-form").performScrollToNode(hasTestTag("sdxl-generation-size"));compose.onNodeWithTag("sdxl-generation-size").assertTextContains("1344×768",substring=true)
