@@ -92,6 +92,36 @@ public final class CoreTests {
     } catch (org.json.JSONException expected) {
       count++;
     }
+    Project removals = new Project();
+    for (String type : new String[] {"video", "image", "audio"}) {
+      Project.Clip element = clip();
+      element.type = type;
+      removals.clips.add(element);
+    }
+    String removedId = removals.clips.get(1).id;
+    check(removals.removeClip(removedId), "remove an imported image");
+    check(
+        removals.clips.size() == 2
+            && removals.clips.get(0).type.equals("video")
+            && removals.clips.get(1).type.equals("audio"),
+        "removal preserves the other media and order");
+    check(!removals.removeClip(removedId), "stale selection does not remove another clip");
+    for (Project.Clip element : new ArrayList<>(removals.clips))
+      check(removals.removeClip(element.id), "all media types can be removed including last");
+    check(removals.copy().clips.isEmpty(), "empty project survives save and reopen");
+    check(
+        SpeechSupport.canAttempt("pt-PT", Collections.emptyList()),
+        "unknown speech metadata must not reject recognition");
+    check(
+        SpeechSupport.canAttempt("pt-PT", Arrays.asList("pt")),
+        "generic Portuguese model is not falsely rejected");
+    check(
+        SpeechSupport.canAttempt("pt-PT", Arrays.asList("pt_PT")),
+        "underscore locale is equivalent");
+    check(
+        !SpeechSupport.canAttempt("pt-PT", Arrays.asList("pt-BR")),
+        "never silently change the requested Portuguese variant");
+    check(SpeechSupport.error(9).contains("permiss"), "permission failure is diagnosed separately");
     System.out.println(
         "PASS: "
             + count

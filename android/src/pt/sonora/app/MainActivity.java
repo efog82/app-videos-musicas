@@ -5,10 +5,12 @@ import android.app.*;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.graphics.Color;
 import android.media.*;
 import android.net.Uri;
 import android.os.*;
 import android.provider.OpenableColumns;
+import android.speech.*;
 import android.view.*;
 import android.widget.*;
 import java.io.*;
@@ -24,6 +26,17 @@ public class MainActivity extends Activity {
   TimelineView timeline;
   LinearLayout root, panel;
   ScrollView tracksScroll;
+  HorizontalScrollView timelineScroll;
+  TextView selectedLabel;
+  Button removeElement, elementsButton;
+  Dialog fullscreenDialog;
+  LinearLayout fullscreenHost;
+  TextView fullscreenTime;
+  Button fullscreenPlay;
+  SeekBar fullscreenSeek;
+  ViewGroup previewHome;
+  ViewGroup.LayoutParams previewHomeParams;
+  int previewHomeIndex, previewHomeVisibility;
   int viewMode;
   ProgressBar progressBar;
   TextView status, time, heading;
@@ -40,6 +53,8 @@ public class MainActivity extends Activity {
   EditorExporter exporter;
   String pendingText, pendingMime, pendingName;
   LocalTranscriber transcriber;
+  SpeechRecognizer downloadRecognizer;
+  String transcriptionLanguage = "pt-PT";
   String[] lyricLines;
   int lyricIndex;
   Project.Caption lastLyric;
@@ -50,6 +65,7 @@ public class MainActivity extends Activity {
   public void onCreate(Bundle state) {
     super.onCreate(state);
     density = getResources().getDisplayMetrics().density;
+    transcriptionLanguage = getPreferences(0).getString("transcriptionLanguage", "pt-PT");
     store = new ProjectStore(this);
     String previousOutput = getSharedPreferences("editor-export", 0).getString("output", "");
     if (!previousOutput.isEmpty() && new File(previousOutput).isFile())
@@ -96,7 +112,7 @@ public class MainActivity extends Activity {
     int screen = getResources().getConfiguration().screenHeightDp;
     root.addView(
         preview,
-        new LinearLayout.LayoutParams(-1, dp(Math.max(64, Math.min(112, (screen - 460) / 2)))));
+        new LinearLayout.LayoutParams(-1, dp(Math.max(48, Math.min(72, (screen - 480) / 3)))));
     preview.listener =
         new PreviewView.Listener() {
           public void position(long ms) {
@@ -109,18 +125,9 @@ public class MainActivity extends Activity {
           }
         };
     LinearLayout transport = row(root);
-    play =
-        icon(
-            transport,
-            "▶",
-            "Reproduzir ou pausar",
-            v -> {
-              if (preview.playing) {
-                preview.pause();
-                play.setText("▶");
-              } else preparePlay();
-            });
+    play = icon(transport, "▶", "Reproduzir ou pausar", v -> togglePlayback());
     time = label(transport, "00:00", 12);
+    icon(transport, "⛶", "Abrir pré-visualização em ecrã inteiro", v -> openFullscreen());
     seek = new SeekBar(this);
     transport.addView(seek, new LinearLayout.LayoutParams(0, dp(48), 1));
     seek.setContentDescription("Posição de reprodução");
@@ -139,11 +146,12 @@ public class MainActivity extends Activity {
           public void onStopTrackingTouch(SeekBar b) {}
         });
     HorizontalScrollView scroller = new HorizontalScrollView(this);
+    timelineScroll = scroller;
     timeline = new TimelineView(this);
     scroller.addView(timeline);
     tracksScroll = new ScrollView(this);
     tracksScroll.addView(scroller);
-    root.addView(tracksScroll, new LinearLayout.LayoutParams(-1, dp(screen < 600 ? 64 : 80)));
+    root.addView(tracksScroll, new LinearLayout.LayoutParams(-1, dp(screen < 600 ? 64 : 76)));
     if (screen < 600) {
       tracksScroll.setVisibility(View.GONE);
       viewMode = 1;
@@ -151,8 +159,7 @@ public class MainActivity extends Activity {
     timeline.listener =
         new TimelineView.Listener() {
           public void select(Project.Clip c) {
-            selected = c.id;
-            showTab(tab);
+            selectElement(c);
           }
 
           public void seek(long ms) {
@@ -166,8 +173,34 @@ public class MainActivity extends Activity {
             MainActivity.this.changed();
           }
         };
+    LinearLayout elementBar = row(root);
+    elementsButton =
+        icon(elementBar, "☷", "Ver todos os elementos do projeto", v -> showElements());
+    selectedLabel = label(elementBar, "Sem elementos", 12);
+    elementBar.removeView(selectedLabel);
+    selectedLabel.setSingleLine(true);
+    selectedLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    elementBar.addView(selectedLabel, new LinearLayout.LayoutParams(0, dp(48), 1));
+    removeElement =
+        icon(
+            elementBar,
+            "✕",
+            "Remover elemento selecionado",
+            v -> {
+              Project.Clip c = clip();
+              if (c != null) confirmRemove(c);
+              else showElements();
+            });
     status = label(root, "Importa música, vídeo ou imagens para começar.", 12);
-    status.setMaxLines(2);
+    status.setMaxLines(1);
+    status.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    status.setOnClickListener(
+        v ->
+            new AlertDialog.Builder(this)
+                .setTitle("Estado do projeto")
+                .setMessage(status.getText())
+                .setPositiveButton("Fechar", null)
+                .show());
     progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
     progressBar.setMax(100);
     progressBar.setVisibility(View.GONE);
@@ -265,6 +298,13 @@ public class MainActivity extends Activity {
   void refresh() {
     if (heading != null) heading.setText("SONORA · " + project.name);
     timeline.update(project, selected, position);
+    if (selectedLabel != null) {
+      Project.Clip c = clip();
+      selectedLabel.setText(c == null ? project.clips.size() + " elementos · toca em ☷" : c.name);
+      removeElement.setEnabled(c != null);
+      elementsButton.setContentDescription(
+          "Ver os " + project.clips.size() + " elementos do projeto");
+    }
     seek.setMax((int) project.durationMs());
     updateClock();
   }
@@ -282,6 +322,12 @@ public class MainActivity extends Activity {
     timeline.playhead = position;
     timeline.invalidate();
     if (!preview.playing) play.setText("▶");
+    if (fullscreenTime != null) {
+      fullscreenTime.setText(time.getText());
+      fullscreenSeek.setMax((int) project.durationMs());
+      fullscreenSeek.setProgress((int) position);
+      fullscreenPlay.setText(preview.playing ? "Ⅱ" : "▶");
+    }
   }
 
   void changed() {
@@ -332,8 +378,189 @@ public class MainActivity extends Activity {
     else exportTab();
   }
 
+  void selectElement(Project.Clip clip) {
+    selected = clip.id;
+    refresh();
+    showTab(tab);
+  }
+
+  void focusElement(Project.Clip clip) {
+    if (clip == null) return;
+    tracksScroll.setVisibility(View.VISIBLE);
+    viewMode = preview.getVisibility() == View.VISIBLE ? 0 : 2;
+    timeline.post(
+        () -> {
+          tracksScroll.scrollTo(0, Math.max(0, timeline.rowTop(clip.id) - dp(8)));
+          timelineScroll.scrollTo(
+              Math.max(0, (int) (clip.startMs * timeline.scale * density) - dp(10)), 0);
+        });
+  }
+
+  void showElements() {
+    if (project.clips.isEmpty()) {
+      message("Ainda não há elementos. Importa vídeo, imagem ou som.");
+      return;
+    }
+    ArrayList<Project.Clip> clips = new ArrayList<>(project.clips);
+    String[] names = new String[clips.size()];
+    for (int i = 0; i < clips.size(); i++) {
+      Project.Clip c = clips.get(i);
+      names[i] =
+          (c.type.equals("video") ? "Vídeo" : c.type.equals("image") ? "Imagem" : "Som")
+              + " · "
+              + c.name;
+    }
+    new AlertDialog.Builder(this)
+        .setTitle("Elementos do projeto")
+        .setItems(
+            names,
+            (d, index) -> {
+              Project.Clip c = clips.get(index);
+              selectElement(c);
+              focusElement(c);
+              new AlertDialog.Builder(this)
+                  .setTitle(c.name)
+                  .setItems(
+                      new String[] {"Selecionar na linha temporal", "Remover do projeto"},
+                      (dialog, action) -> {
+                        if (action == 1) confirmRemove(c);
+                      })
+                  .setNegativeButton("Fechar", null)
+                  .show();
+            })
+        .setNegativeButton("Fechar", null)
+        .show();
+  }
+
+  AlertDialog confirmRemove(Project.Clip clip) {
+    if (clip == null || busy) {
+      if (busy) message("Aguarda a operação atual antes de remover.");
+      return null;
+    }
+    return new AlertDialog.Builder(this)
+        .setTitle("Remover elemento?")
+        .setMessage(clip.name + "\nO ficheiro original fica guardado no telemóvel.")
+        .setNegativeButton("Cancelar", null)
+        .setPositiveButton("Remover", (d, w) -> removeClip(clip.id))
+        .show();
+  }
+
+  void removeClip(String id) {
+    if (busy) return;
+    if (!project.removeClip(id)) return;
+    selected =
+        project.clips.isEmpty()
+            ? null
+            : project.clips.get(Math.max(0, project.clips.size() - 1)).id;
+    position = project.clips.isEmpty() ? 0 : Math.min(position, project.durationMs());
+    analysisKey = "";
+    preview.setAnalysis(null);
+    changed();
+    showTab(tab);
+    focusElement(clip());
+    message("Elemento removido do projeto. O ficheiro original foi preservado.");
+  }
+
+  void togglePlayback() {
+    if (busy) {
+      message("Aguarda a preparação do áudio.");
+      return;
+    }
+    if (project.clips.isEmpty()) {
+      message("Importa primeiro um vídeo, imagem ou som.");
+      return;
+    }
+    if (preview.playing) {
+      preview.pause();
+      play.setText("▶");
+      updateClock();
+    } else preparePlay();
+  }
+
+  void openFullscreen() {
+    if (fullscreenDialog != null) return;
+    previewHome = (ViewGroup) preview.getParent();
+    previewHomeIndex = previewHome.indexOfChild(preview);
+    previewHomeParams = preview.getLayoutParams();
+    previewHomeVisibility = preview.getVisibility();
+    previewHome.removeView(preview);
+    preview.setVisibility(View.VISIBLE);
+    fullscreenDialog = new Dialog(this, android.R.style.Theme_Material_NoActionBar_Fullscreen);
+    fullscreenHost = new LinearLayout(this);
+    fullscreenHost.setOrientation(LinearLayout.VERTICAL);
+    fullscreenHost.setBackgroundColor(Color.BLACK);
+    fullscreenHost.addView(preview, new LinearLayout.LayoutParams(-1, 0, 1));
+    LinearLayout controls = row(fullscreenHost);
+    fullscreenPlay =
+        icon(
+            controls,
+            preview.playing ? "Ⅱ" : "▶",
+            "Reproduzir ou pausar em ecrã inteiro",
+            v -> togglePlayback());
+    fullscreenTime = label(controls, time.getText().toString(), 12);
+    Button close = new Button(this);
+    close.setText("Voltar ao editor");
+    close.setAllCaps(false);
+    close.setContentDescription("Sair do ecrã inteiro");
+    close.setOnClickListener(
+        v -> {
+          if (fullscreenDialog != null) fullscreenDialog.dismiss();
+        });
+    controls.addView(close, new LinearLayout.LayoutParams(0, dp(48), 1));
+    fullscreenSeek = new SeekBar(this);
+    fullscreenSeek.setMax((int) project.durationMs());
+    fullscreenSeek.setProgress((int) position);
+    fullscreenSeek.setContentDescription("Posição da pré-visualização em ecrã inteiro");
+    fullscreenHost.addView(fullscreenSeek, new LinearLayout.LayoutParams(-1, dp(48)));
+    fullscreenSeek.setOnSeekBarChangeListener(
+        new SeekBar.OnSeekBarChangeListener() {
+          public void onStartTrackingTouch(SeekBar b) {}
+
+          public void onStopTrackingTouch(SeekBar b) {}
+
+          public void onProgressChanged(SeekBar b, int ms, boolean user) {
+            if (user) {
+              position = ms;
+              preview.seek(ms);
+              updateClock();
+            }
+          }
+        });
+    fullscreenDialog.setContentView(fullscreenHost);
+    fullscreenDialog.setOnDismissListener(
+        d -> {
+          fullscreenHost.removeView(preview);
+          previewHome.addView(preview, previewHomeIndex, previewHomeParams);
+          preview.setVisibility(previewHomeVisibility);
+          fullscreenDialog = null;
+          fullscreenHost = null;
+          fullscreenTime = null;
+          fullscreenPlay = null;
+          fullscreenSeek = null;
+          setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+          preview.render();
+        });
+    fullscreenDialog.show();
+    fullscreenDialog.getWindow().setLayout(-1, -1);
+    fullscreenDialog
+        .getWindow()
+        .getDecorView()
+        .setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+    setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR);
+    preview.render();
+  }
+
   void projectTab() {
     label(panel, "PROJETO · edição não destrutiva", 15);
+    button("♫ Importar música", () -> pick(10, "audio/*", true));
+    button("▣ Importar vídeo", () -> pick(11, "video/*", true));
+    button("▧ Importar imagens", () -> pick(12, "image/*", true));
+    button("☷ Elementos do projeto (" + project.clips.size() + ")", this::showElements);
+    if (clip() != null) button("✕ Remover: " + clip().name, () -> confirmRemove(clip()));
+
     button(
         "Modo compatível · Todas as funções Sonora 0.3",
         () -> {
@@ -364,9 +591,7 @@ public class MainActivity extends Activity {
           arrangeImages();
           changed();
         });
-    button("♫ Importar música", () -> pick(10, "audio/*", true));
-    button("▣ Importar vídeo (com áudio original)", () -> pick(11, "video/*", true));
-    button("▧ Importar imagens", () -> pick(12, "image/*", true));
+
     button("Abrir projeto guardado", this::openProject);
     button("Importar projeto JSON", () -> pick(13, "application/json", false));
     button(
@@ -401,14 +626,7 @@ public class MainActivity extends Activity {
                 c.type.equals("image") ? "image/*" : c.type.equals("video") ? "video/*" : "audio/*",
                 false);
           });
-      button(
-          "Remover clip do projeto",
-          () -> {
-            project.clips.remove(c);
-            selected = null;
-            changed();
-            showTab(tab);
-          });
+      button("Remover clip do projeto", () -> confirmRemove(c));
     }
     button(
         "＋ Zoom da linha temporal",
@@ -727,6 +945,22 @@ public class MainActivity extends Activity {
   }
 
   void captionsTab() {
+    button("Diagnóstico da transcrição · Android", this::speechDiagnostics);
+    button(
+        "Idioma de transcrição: " + transcriptionLanguage,
+        () ->
+            choice(
+                "Variante de português",
+                new String[] {"Português (Portugal) · pt-PT", "Português (Brasil) · pt-BR"},
+                transcriptionLanguage.equals("pt-PT") ? 0 : 1,
+                i -> {
+                  transcriptionLanguage = i == 0 ? "pt-PT" : "pt-BR";
+                  getPreferences(0)
+                      .edit()
+                      .putString("transcriptionLanguage", transcriptionLanguage)
+                      .apply();
+                  showTab(tab);
+                }));
     button(
         project.showSubtitles ? "Ocultar legendas" : "Mostrar legendas",
         () -> {
@@ -1408,6 +1642,7 @@ public class MainActivity extends Activity {
                   setBusy(importing > 0);
                   changed();
                   showTab("Projeto");
+                  focusElement(c);
                   message(
                       retained
                           ? "Ficheiro importado. Arrasta o clip ou edita os tempos."
@@ -1432,29 +1667,105 @@ public class MainActivity extends Activity {
       if (cursor != null && cursor.moveToFirst()) return cursor.getString(0);
     } catch (Exception ignored) {
     }
+    String segment = uri.getLastPathSegment();
+    if (segment != null && !segment.trim().isEmpty())
+      return segment.substring(segment.lastIndexOf('/') + 1);
     return "Ficheiro importado";
   }
 
+  void speechDiagnostics() {
+    new AlertDialog.Builder(this)
+        .setTitle("Diagnóstico da transcrição")
+        .setMessage(
+            LocalTranscriber.diagnostics(this) + "\nIdioma pedido: " + transcriptionLanguage)
+        .setPositiveButton(
+            "Definições de voz",
+            (d, w) -> {
+              try {
+                startActivity(new Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS));
+              } catch (ActivityNotFoundException e) {
+                startActivity(new Intent(android.provider.Settings.ACTION_SETTINGS));
+              }
+            })
+        .setNeutralButton("Obter modelo", (d, w) -> requestSpeechModel())
+        .setNegativeButton("Fechar", null)
+        .show();
+  }
+
+  void requestSpeechModel() {
+    if (!LocalTranscriber.available(this)) {
+      new AlertDialog.Builder(this)
+          .setTitle("Serviço local indisponível")
+          .setMessage(
+              "O Android não anuncia um serviço de reconhecimento local para esta aplicação."
+                  + " Configurar uma voz em saída de texto não adiciona esse serviço. Atualiza ou"
+                  + " configura o serviço de reconhecimento de voz nas definições do Android;"
+                  + " depois volta a verificar o diagnóstico.")
+          .setPositiveButton("Ver diagnóstico", (d, w) -> speechDiagnostics())
+          .setNegativeButton("Fechar", null)
+          .show();
+      return;
+    }
+    new AlertDialog.Builder(this)
+        .setTitle("Pedir modelo de " + transcriptionLanguage)
+        .setMessage(
+            "O Android pode descarregar o modelo através da Internet. É o modelo de reconhecimento,"
+                + " não uma voz de leitura TTS. Nenhum áudio do projeto será enviado pelo Sonora. O"
+                + " serviço decide se este idioma está disponível.")
+        .setNegativeButton("Cancelar", null)
+        .setPositiveButton(
+            "Pedir ao Android",
+            (d, w) -> {
+              try {
+                if (downloadRecognizer != null) downloadRecognizer.destroy();
+                downloadRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this);
+                downloadRecognizer.triggerModelDownload(
+                    new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, transcriptionLanguage)
+                        .putExtra(
+                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM));
+                message(
+                    "Pedido de modelo enviado ao Android. Aguarda a instalação no serviço de"
+                        + " reconhecimento e tenta transcrever novamente.");
+              } catch (Exception e) {
+                message("O serviço não aceitou o pedido de modelo: " + e.getMessage());
+              }
+            })
+        .show();
+  }
+
   void transcribe() {
-    if (Build.VERSION.SDK_INT < 33) {
-      message(
-          "Transcrição de ficheiros exige Android 13+ e motor local pt-PT. Usa SRT ou edição manual"
-              + " neste aparelho.");
+    if (project.clips.isEmpty()) {
+      message("Importa primeiro um áudio ou vídeo com voz.");
+      return;
+    }
+    if (Build.VERSION.SDK_INT < 33 || !LocalTranscriber.available(this)) {
+      speechDiagnostics();
       return;
     }
     if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
         != PackageManager.PERMISSION_GRANTED) {
       requestPermissions(new String[] {Manifest.permission.RECORD_AUDIO}, 40);
-      message("Autoriza o reconhecimento no Android e volta a tocar em Transcrever.");
-      return;
-    }
-    if (!LocalTranscriber.available(this)) {
-      message(
-          "Não existe motor de reconhecimento local neste aparelho. Não será usado um serviço"
-              + " online.");
       return;
     }
     prepareTranscription();
+  }
+
+  @Override
+  public void onRequestPermissionsResult(int request, String[] names, int[] grants) {
+    super.onRequestPermissionsResult(request, names, grants);
+    if (request == 40) {
+      if (grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED) transcribe();
+      else
+        new AlertDialog.Builder(this)
+            .setTitle("Permissão de reconhecimento")
+            .setMessage(
+                "A transcrição precisa da permissão de reconhecimento/microfone exigida pelo"
+                    + " Android. Os ficheiros do projeto continuam preservados.")
+            .setPositiveButton("Fechar", null)
+            .show();
+    }
   }
 
   void prepareTranscription() {
@@ -1484,10 +1795,12 @@ public class MainActivity extends Activity {
               }
               runOnUiThread(
                   () -> {
+                    message("A transcrever voz localmente em " + transcriptionLanguage + "…");
                     transcriber = new LocalTranscriber(MainActivity.this);
                     transcriber.start(
                         speech,
                         snapshot.durationMs(),
+                        transcriptionLanguage,
                         new LocalTranscriber.Result() {
                           public void success(String text, ArrayList<Project.Caption> timed) {
                             if (timed.isEmpty())
@@ -1508,6 +1821,12 @@ public class MainActivity extends Activity {
                           public void failure(String error) {
                             setBusy(false);
                             message(error);
+                            new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("Transcrição não concluída")
+                                .setMessage(error)
+                                .setPositiveButton("Ver diagnóstico", (d, w) -> speechDiagnostics())
+                                .setNegativeButton("Fechar", null)
+                                .show();
                           }
                         });
                   });
@@ -1539,6 +1858,8 @@ public class MainActivity extends Activity {
   @Override
   protected void onDestroy() {
     handler.removeCallbacks(exportTick);
+    if (fullscreenDialog != null) fullscreenDialog.dismiss();
+    if (downloadRecognizer != null) downloadRecognizer.destroy();
     if (transcriber != null) transcriber.close();
     preview.close();
     worker.shutdown();

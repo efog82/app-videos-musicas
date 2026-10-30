@@ -1,12 +1,13 @@
 package pt.sonora.app;
 
 import android.content.*;
+import android.content.pm.ResolveInfo;
 import android.os.*;
 import android.speech.*;
 import java.io.*;
 import java.util.*;
 
-/** Uses only an Android on-device recognition service. Never falls back to the network. */
+/** Only binds Android's on-device recognizer; unknown capability metadata never means missing. */
 final class LocalTranscriber implements AutoCloseable {
   interface Result {
     void success(String text, ArrayList<Project.Caption> timed);
@@ -16,117 +17,226 @@ final class LocalTranscriber implements AutoCloseable {
 
   final Context context;
   SpeechRecognizer recognizer;
-  ParcelFileDescriptor audio;
+  ParcelFileDescriptor audio, writer;
   Result callback;
   final StringBuilder segments = new StringBuilder();
   final ArrayList<Project.Caption> timed = new ArrayList<>();
-  long durationMs;
-  boolean finished;
   final Handler handler = new Handler(Looper.getMainLooper());
+  long durationMs;
+  boolean finished, attemptStarted, retried;
+  int generation;
+  String language = "pt-PT";
+  File source;
 
   LocalTranscriber(Context c) {
     context = c;
   }
 
-  static boolean available(Context c) {
-    return Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(c);
+  static boolean available(Context context) {
+    return Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context);
+  }
+
+  static String diagnostics(Context c) {
+    StringBuilder s =
+        new StringBuilder(
+            "Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")\n");
+    s.append("Reconhecimento de voz instalado: ")
+        .append(SpeechRecognizer.isRecognitionAvailable(c) ? "sim" : "não")
+        .append('\n');
+    s.append("Reconhecimento local: ")
+        .append(
+            Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(c)
+                ? "disponível"
+                : "não anunciado pelo Android")
+        .append('\n');
+    s.append("Entrada de áudio de ficheiro: ")
+        .append(Build.VERSION.SDK_INT >= 33 ? "API disponível" : "exige Android 13+")
+        .append("\n\n");
+    List<ResolveInfo> services =
+        c.getPackageManager()
+            .queryIntentServices(new Intent(RecognitionService.SERVICE_INTERFACE), 0);
+    s.append("Serviços de reconhecimento visíveis: ").append(services.size()).append('\n');
+    for (ResolveInfo info : services)
+      s.append("• ").append(info.loadLabel(c.getPackageManager())).append('\n');
+    s.append(
+        "\n"
+            + "As definições de saída de texto (TTS) servem para ler texto em voz alta. A"
+            + " transcrição precisa de um serviço de reconhecimento e de um modelo de português."
+            + " Ter uma voz TTS instalada não confirma esses dois requisitos.\n\n"
+            + "Não é usado reconhecimento online.");
+    return s.toString();
   }
 
   void start(File file, long duration, Result result) {
+    start(file, duration, "pt-PT", result);
+  }
+
+  void start(File file, long duration, String locale, Result result) {
     callback = result;
     durationMs = duration;
+    source = file;
+    language = locale;
     if (!available(context)) {
-      fail("Sem motor local para transcrever ficheiros neste Android.");
+      fail(diagnostics(context));
       return;
     }
-    recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context);
-    recognizer.setRecognitionListener(
-        new RecognitionListener() {
-          public void onReadyForSpeech(Bundle b) {}
+    begin(true);
+  }
 
-          public void onBeginningOfSpeech() {}
-
-          public void onRmsChanged(float n) {}
-
-          public void onBufferReceived(byte[] b) {}
-
-          public void onEndOfSpeech() {}
-
-          public void onPartialResults(Bundle b) {}
-
-          public void onEvent(int type, Bundle b) {}
-
-          public void onError(int error) {
-            fail(
-                "O reconhecimento local não concluiu (código "
-                    + error
-                    + "). Confirma o pacote de idioma pt-PT nas definições do Android. Podes usar"
-                    + " edição manual ou importar SRT.");
-          }
-
-          public void onResults(Bundle b) {
-            append(b);
-            complete();
-          }
-
-          public void onSegmentResults(Bundle b) {
-            append(b);
-          }
-
-          public void onEndOfSegmentedSession() {
-            complete();
-          }
-        });
-    Intent intent =
-        new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-            .putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-PT")
-            .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
-    if (Build.VERSION.SDK_INT >= 34)
-      intent.putExtra(RecognizerIntent.EXTRA_REQUEST_WORD_TIMING, true);
+  void begin(boolean segmented) {
+    attemptStarted = false;
+    final int attempt = ++generation;
     try {
-      audio = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
-      intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE, audio);
-      intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT, 1);
-      intent.putExtra(
-          RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING,
-          android.media.AudioFormat.ENCODING_PCM_16BIT);
-      intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, 16000);
-      intent.putExtra(
-          RecognizerIntent.EXTRA_SEGMENTED_SESSION, RecognizerIntent.EXTRA_AUDIO_SOURCE);
+      recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context);
+      recognizer.setRecognitionListener(
+          new RecognitionListener() {
+            boolean active() {
+              return !finished && attempt == generation;
+            }
+
+            public void onReadyForSpeech(Bundle b) {}
+
+            public void onBeginningOfSpeech() {}
+
+            public void onRmsChanged(float n) {}
+
+            public void onBufferReceived(byte[] b) {}
+
+            public void onEndOfSpeech() {}
+
+            public void onPartialResults(Bundle b) {}
+
+            public void onEvent(int t, Bundle b) {}
+
+            public void onError(int code) {
+              if (!active()) return;
+              if (segmented
+                  && !retried
+                  && segments.length() == 0
+                  && (code == 3 || code == 5 || code == 14)) {
+                retried = true;
+                releaseAttempt();
+                handler.postDelayed(
+                    () -> {
+                      if (!finished) begin(false);
+                    },
+                    350);
+                return;
+              }
+              fail(
+                  SpeechSupport.error(code)
+                      + "\nIdioma pedido: "
+                      + language
+                      + " (erro "
+                      + code
+                      + ").\n"
+                      + "Usa «Diagnóstico da transcrição» para verificar o serviço e o modelo.");
+            }
+
+            public void onResults(Bundle b) {
+              if (active()) {
+                append(b);
+                complete();
+              }
+            }
+
+            public void onSegmentResults(Bundle b) {
+              if (active()) append(b);
+            }
+
+            public void onEndOfSegmentedSession() {
+              if (active()) complete();
+            }
+          });
+      ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
+      audio = pipe[0];
+      writer = pipe[1];
+      Intent intent =
+          new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+              .putExtra(
+                  RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+              .putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
+              .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+              .putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE, audio)
+              .putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT, 1)
+              .putExtra(
+                  RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING,
+                  android.media.AudioFormat.ENCODING_PCM_16BIT)
+              .putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, 16000);
+      if (segmented)
+        intent.putExtra(
+            RecognizerIntent.EXTRA_SEGMENTED_SESSION, RecognizerIntent.EXTRA_AUDIO_SOURCE);
+      if (Build.VERSION.SDK_INT >= 34)
+        intent.putExtra(RecognizerIntent.EXTRA_REQUEST_WORD_TIMING, true);
+      Runnable start =
+          () -> {
+            if (finished || attempt != generation || attemptStarted) return;
+            attemptStarted = true;
+            try {
+              recognizer.startListening(intent);
+              ParcelFileDescriptor destination = writer;
+              new Thread(
+                      () -> {
+                        try (InputStream in = new BufferedInputStream(new FileInputStream(source));
+                            OutputStream out =
+                                new ParcelFileDescriptor.AutoCloseOutputStream(destination)) {
+                          byte[] buffer = new byte[3200];
+                          int n;
+                          while (!finished && attempt == generation && (n = in.read(buffer)) != -1)
+                            out.write(buffer, 0, n);
+                        } catch (IOException e) {
+                          android.util.Log.i("SonoraSpeech", "Recognition input closed");
+                        }
+                      },
+                      "Sonora-speech-input")
+                  .start();
+              handler.postDelayed(
+                  () -> {
+                    if (!finished && attempt == generation)
+                      fail(
+                          "O motor local excedeu o tempo de espera. O projeto foi preservado."
+                              + " Verifica o serviço no diagnóstico da transcrição.");
+                  },
+                  Math.max(60000, durationMs * 2));
+            } catch (Exception e) {
+              fail("Não foi possível iniciar o serviço local: " + e.getMessage());
+            }
+          };
+      // Some Android 13 services implement recognition but not capability queries.
+      handler.postDelayed(start, 8000);
       recognizer.checkRecognitionSupport(
           intent,
           context.getMainExecutor(),
           new RecognitionSupportCallback() {
             public void onSupportResult(RecognitionSupport support) {
-              boolean installed = false;
-              for (String language : support.getInstalledOnDeviceLanguages())
-                if (language.replace('_', '-').equalsIgnoreCase("pt-PT")) installed = true;
-              if (!installed) {
+              if (finished || attempt != generation || attemptStarted) return;
+              List<String> installed = support.getInstalledOnDeviceLanguages();
+              if (!SpeechSupport.canAttempt(language, installed)) {
                 fail(
-                    "O modelo local de português de Portugal (pt-PT) não está instalado. Instala-o"
-                        + " nas definições de voz do Android. Nenhum serviço online foi usado.");
+                    "O serviço anunciou estes idiomas locais: "
+                        + installed
+                        + ". Não confirmou "
+                        + language
+                        + ". No diagnóstico podes pedir o modelo ou escolher explicitamente outra"
+                        + " variante de português.");
                 return;
               }
-              if (!finished) {
-                recognizer.startListening(intent);
-                handler.postDelayed(
-                    () ->
-                        fail("O motor local excedeu o tempo de espera. O projeto foi preservado."),
-                    Math.max(60000, duration * 2));
-              }
+              start.run();
             }
 
             public void onError(int code) {
-              fail(
-                  "Este motor não confirmou suporte a ficheiros de áudio pt-PT (código "
-                      + code
-                      + "). Usa SRT ou edição manual.");
+              if (finished || attempt != generation || attemptStarted) return;
+              if (code == 12 || code == 13) {
+                fail(
+                    SpeechSupport.error(code)
+                        + " Idioma pedido: "
+                        + language
+                        + ". Usa a opção de obter o modelo no diagnóstico.");
+              } else start.run();
             }
           });
     } catch (Exception e) {
-      fail("Não foi possível iniciar a transcrição local: " + e.getMessage());
+      fail("Não foi possível preparar a transcrição local: " + e.getMessage());
     }
   }
 
@@ -139,7 +249,7 @@ final class LocalTranscriber implements AutoCloseable {
           long start = part.getTimestampMillis();
           String value =
               part.getFormattedText() == null ? part.getRawText() : part.getFormattedText();
-          if (start >= 0 && start < durationMs && !value.trim().isEmpty()) {
+          if (start >= 0 && start < durationMs && value != null && !value.trim().isEmpty()) {
             if (!timed.isEmpty() && start > timed.get(timed.size() - 1).startMs)
               timed.get(timed.size() - 1).endMs = start;
             timed.add(new Project.Caption(start, Math.min(durationMs, start + 500), value));
@@ -156,11 +266,13 @@ final class LocalTranscriber implements AutoCloseable {
   void complete() {
     if (finished) return;
     if (segments.length() == 0) {
-      fail("O motor não reconheceu voz. Música e canto podem não ser reconhecidos com precisão.");
+      fail(
+          "Não foi reconhecida fala. Revê se a faixa selecionada contém voz; canto e instrumentos"
+              + " podem não ser reconhecidos.");
       return;
     }
-    finished = true;
     String text = segments.toString();
+    finished = true;
     close();
     callback.success(text, timed);
   }
@@ -172,10 +284,10 @@ final class LocalTranscriber implements AutoCloseable {
     if (callback != null) callback.failure(message);
   }
 
-  public void close() {
-    finished = true;
-    handler.removeCallbacksAndMessages(null);
+  void releaseAttempt() {
+    generation++;
     if (recognizer != null) {
+      recognizer.cancel();
       recognizer.destroy();
       recognizer = null;
     }
@@ -184,6 +296,18 @@ final class LocalTranscriber implements AutoCloseable {
         audio.close();
       } catch (IOException ignored) {
       }
+    if (writer != null)
+      try {
+        writer.close();
+      } catch (IOException ignored) {
+      }
     audio = null;
+    writer = null;
+  }
+
+  public void close() {
+    finished = true;
+    handler.removeCallbacksAndMessages(null);
+    releaseAttempt();
   }
 }

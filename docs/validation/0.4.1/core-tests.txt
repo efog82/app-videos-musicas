@@ -1,0 +1,2 @@
+PASS: 35 assertions (project recovery, SRT, timing, fades, original audio, saturation, FFT bands)
+PASS: 36 SRT checks (timing, offsets, seeking, overlaps, encodings, malformed input and limits)

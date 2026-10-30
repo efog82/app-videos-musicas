@@ -133,6 +133,15 @@ final class Project {
     return end == 0 ? 10000 : end;
   }
 
+  boolean removeClip(String id) {
+    for (int i = 0; i < clips.size(); i++)
+      if (clips.get(i).id.equals(id)) {
+        clips.remove(i);
+        return true;
+      }
+    return false;
+  }
+
   Clip find(String id) {
     for (Clip c : clips) if (c.id.equals(id)) return c;
     return null;

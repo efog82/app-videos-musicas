@@ -25,7 +25,7 @@ final class PreviewView extends View {
   boolean mixReady;
   File wave;
   volatile boolean rendering, closed;
-  boolean playing;
+  boolean playing, renderAgain;
   long position, base, epoch;
   Project project = new Project();
   Bitmap frame;
@@ -177,7 +177,11 @@ final class PreviewView extends View {
       };
 
   void render() {
-    if (rendering || closed || getWidth() < 1 || getHeight() < 1) return;
+    if (closed || getWidth() < 1 || getHeight() < 1) return;
+    if (rendering) {
+      renderAgain = true;
+      return;
+    }
     rendering = true;
     long ms = position;
     float aspect = project.square ? 1 : project.vertical ? 9f / 16 : 16f / 9;
@@ -208,6 +212,10 @@ final class PreviewView extends View {
                   if (old != null) old.recycle();
                   rendering = false;
                   invalidate();
+                  if (renderAgain) {
+                    renderAgain = false;
+                    render();
+                  }
                 });
           } catch (Exception e) {
             if (next != null) next.recycle();

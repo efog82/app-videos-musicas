@@ -2,10 +2,12 @@ package pt.sonora.app;
 
 import android.content.Context;
 import android.graphics.*;
+import android.text.TextPaint;
+import android.text.TextUtils;
 import android.view.*;
 import java.util.*;
 
-/** Four or more editable lanes. Drag clip body to move; edges trim without touching source. */
+/** Each imported element has a visible, independently selectable row, even when clips overlap. */
 final class TimelineView extends View {
   interface Listener {
     void select(Project.Clip clip);
@@ -17,151 +19,194 @@ final class TimelineView extends View {
 
   Project project;
   Listener listener;
-  final Paint paint = new Paint(3);
+  final TextPaint paint = new TextPaint(3);
+  final ArrayList<Project.Clip> elements = new ArrayList<>();
   float scale = .05f, downX;
   long oldStart, oldIn, oldLength;
   String selected;
   Project.Clip dragging;
   int edge;
   final float dp;
+  long playhead;
 
-  TimelineView(Context c) {
-    super(c);
+  TimelineView(Context context) {
+    super(context);
     dp = getResources().getDisplayMetrics().density;
     setContentDescription(
-        "Linha temporal multifaixa. Toque para selecionar; arraste clip ou extremidades para"
-            + " editar.");
+        "Linha temporal: cada vídeo, imagem e som tem uma linha. Toque num elemento para"
+            + " selecionar; arraste para mover ou cortar.");
   }
 
   int labelWidth() {
-    return (int) (78 * dp);
+    return (int) (68 * dp);
   }
 
   float row() {
-    return 45 * dp;
+    return 48 * dp;
   }
 
-  int lanes() {
-    int max = 3;
-    if (project != null) for (Project.Clip c : project.clips) max = Math.max(max, c.track);
-    return max + 1;
+  int rowOf(String id) {
+    for (int i = 0; i < elements.size(); i++) if (elements.get(i).id.equals(id)) return i;
+    return -1;
   }
 
-  long playhead;
+  int rowTop(String id) {
+    int index = rowOf(id);
+    return index < 0 ? 0 : (int) (28 * dp + index * row());
+  }
 
-  void update(Project p, String id, long ms) {
-    project = p;
+  void update(Project value, String id, long ms) {
+    project = value;
     selected = id;
     playhead = ms;
+    elements.clear();
+    elements.addAll(value.clips);
+    Collections.sort(
+        elements,
+        (a, b) -> {
+          int track = Integer.compare(a.track, b.track);
+          return track == 0 ? Long.compare(a.startMs, b.startMs) : track;
+        });
     requestLayout();
     invalidate();
   }
 
+  RectF bounds(Project.Clip clip, int index) {
+    float left = labelWidth() + clip.startMs * scale * dp, top = 28 * dp + index * row() + 3 * dp;
+    return new RectF(
+        left,
+        top,
+        Math.max(left + 76 * dp, labelWidth() + clip.endMs() * scale * dp),
+        top + 42 * dp);
+  }
+
   @Override
-  protected void onMeasure(int w, int h) {
+  protected void onMeasure(int width, int height) {
     long duration = project == null ? 10000 : project.durationMs();
     setMeasuredDimension(
         Math.max(
-            MeasureSpec.getSize(w), labelWidth() + (int) (duration * scale * dp) + (int) (50 * dp)),
-        (int) (30 * dp + row() * (lanes() + 1)));
+            MeasureSpec.getSize(width),
+            labelWidth() + (int) (duration * scale * dp) + (int) (90 * dp)),
+        (int)
+            (28 * dp
+                + row()
+                    * Math.max(
+                        1,
+                        elements.size()
+                            + (project != null && !project.captions.isEmpty() ? 1 : 0))));
   }
 
   @Override
-  protected void onDraw(Canvas c) {
-    c.drawColor(0xff101629);
+  protected void onDraw(Canvas canvas) {
+    canvas.drawColor(0xff101629);
     if (project == null) return;
-    int label = labelWidth();
-    float px = scale * dp;
     paint.setTextSize(11 * dp);
     paint.setTypeface(Typeface.DEFAULT);
-    for (int lane = 0; lane < lanes(); lane++) {
-      float top = 30 * dp + row() * lane;
-      paint.setColor(0xff242d45);
-      c.drawLine(0, top, getWidth(), top, paint);
-      paint.setColor(0xffb5bdd7);
-      c.drawText(
-          lane == 0 ? "Vídeo 1" : lane == 1 ? "Imagem" : "Áudio " + (lane - 1),
-          6 * dp,
-          top + 26 * dp,
-          paint);
-    }
+    paint.setStyle(Paint.Style.FILL);
     long step = scale < .03f ? 10000 : 5000;
     for (long t = 0; t <= project.durationMs(); t += step) {
       paint.setColor(0xffa8b3d2);
-      c.drawText(
-          String.format(java.util.Locale.ROOT, "%d:%02d", t / 60000, (t / 1000) % 60),
-          label + t * px,
-          19 * dp,
+      canvas.drawText(
+          String.format(Locale.ROOT, "%d:%02d", t / 60000, (t / 1000) % 60),
+          labelWidth() + t * scale * dp,
+          18 * dp,
           paint);
     }
-    for (Project.Clip clip : project.clips) {
-      float left = label + clip.startMs * px,
-          right = label + clip.endMs() * px,
-          top = 30 * dp + row() * clip.track + 5 * dp;
+    if (elements.isEmpty()) {
+      paint.setColor(0xffbac5e3);
+      canvas.drawText("Sem elementos. Importa vídeo, imagem ou som.", 8 * dp, 54 * dp, paint);
+    }
+    Rect visible = canvas.getClipBounds();
+    for (int index = 0; index < elements.size(); index++) {
+      Project.Clip clip = elements.get(index);
+      RectF box = bounds(clip, index);
+      if (box.bottom < visible.top || box.top > visible.bottom) continue;
+      paint.setColor(0xff29314b);
+      canvas.drawLine(0, box.top - 3 * dp, getWidth(), box.top - 3 * dp, paint);
+      paint.setColor(0xffb5bdd7);
+      String type =
+          clip.type.equals("video") ? "Vídeo" : clip.type.equals("image") ? "Imagem" : "Som";
+      canvas.drawText(type, 5 * dp, box.top + 26 * dp, paint);
       paint.setColor(
           clip.type.equals("audio")
-              ? 0xff375a73
-              : clip.type.equals("video") ? 0xff64528f : 0xff3d7466);
-      RectF rect = new RectF(left, top, Math.max(left + 12 * dp, right), top + 35 * dp);
-      c.drawRoundRect(rect, 6 * dp, 6 * dp, paint);
+              ? 0xff315e78
+              : clip.type.equals("video") ? 0xff65508c : 0xff397263);
+      canvas.drawRoundRect(box, 6 * dp, 6 * dp, paint);
       if (clip.id.equals(selected)) {
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(2 * dp);
-        paint.setColor(0xffd3c6ff);
-        c.drawRoundRect(rect, 6 * dp, 6 * dp, paint);
+        paint.setColor(0xffd9caff);
+        canvas.drawRoundRect(box, 6 * dp, 6 * dp, paint);
         paint.setStyle(Paint.Style.FILL);
       }
-      c.save();
-      c.clipRect(rect);
+      canvas.save();
+      canvas.clipRect(box);
       paint.setColor(Color.WHITE);
-      c.drawText(clip.name, left + 8 * dp, top + 23 * dp, paint);
-      c.restore();
-    }
-    float captionY = 30 * dp + row() * lanes();
-    paint.setColor(0xffb5bdd7);
-    c.drawText("Legendas", 6 * dp, captionY + 25 * dp, paint);
-    for (Project.Caption caption : project.captions) {
-      paint.setColor(0xff8b6c35);
-      c.drawRoundRect(
-          label + caption.startMs * px,
-          captionY + 5 * dp,
-          label + caption.endMs * px,
-          captionY + 35 * dp,
-          4 * dp,
-          4 * dp,
+      paint.setTextSize(12 * dp);
+      String name =
+          TextUtils.ellipsize(
+                  clip.name, paint, Math.max(1, box.width() - 16 * dp), TextUtils.TruncateAt.END)
+              .toString();
+      canvas.drawText(name, box.left + 8 * dp, box.top + 18 * dp, paint);
+      paint.setTextSize(10 * dp);
+      canvas.drawText(
+          String.format(
+              Locale.ROOT, "%.1f s%s", clip.lengthMs / 1000.0, clip.muted ? " · sem som" : ""),
+          box.left + 8 * dp,
+          box.top + 34 * dp,
           paint);
+      canvas.restore();
+      paint.setTextSize(11 * dp);
     }
-    paint.setColor(0xffd9d0ff);
+    if (!project.captions.isEmpty()) {
+      float y = 28 * dp + elements.size() * row();
+      paint.setColor(0xffb5bdd7);
+      canvas.drawText("Legendas", 4 * dp, y + 27 * dp, paint);
+      for (Project.Caption caption : project.captions) {
+        paint.setColor(0xff8b6c35);
+        canvas.drawRoundRect(
+            labelWidth() + caption.startMs * scale * dp,
+            y + 4 * dp,
+            labelWidth() + caption.endMs * scale * dp,
+            y + 43 * dp,
+            4 * dp,
+            4 * dp,
+            paint);
+      }
+    }
+    paint.setColor(0xffe5dcff);
     paint.setStrokeWidth(2 * dp);
-    float x = label + playhead * px;
-    c.drawLine(x, 25 * dp, x, getHeight(), paint);
+    float x = labelWidth() + playhead * scale * dp;
+    canvas.drawLine(x, 24 * dp, x, getHeight(), paint);
   }
 
   @Override
-  public boolean onTouchEvent(android.view.MotionEvent e) {
-    if (project == null) return false;
+  public boolean onTouchEvent(MotionEvent event) {
+    if (project == null || listener == null) return false;
     float px = scale * dp;
     long time =
-        Math.max(0, Math.min(project.durationMs(), (long) ((e.getX() - labelWidth()) / px)));
-    if (e.getAction() == MotionEvent.ACTION_DOWN) {
-      downX = e.getX();
+        Math.max(0, Math.min(project.durationMs(), (long) ((event.getX() - labelWidth()) / px)));
+    if (event.getAction() == MotionEvent.ACTION_DOWN) {
+      downX = event.getX();
       dragging = null;
-      int lane = (int) ((e.getY() - 30 * dp) / row());
-      for (int i = project.clips.size() - 1; i >= 0; i--) {
-        Project.Clip c = project.clips.get(i);
-        if (c.track == lane && time >= c.startMs && time <= c.endMs()) {
-          dragging = c;
-          oldStart = c.startMs;
-          oldIn = c.inMs;
-          oldLength = c.lengthMs;
-          float left = labelWidth() + c.startMs * px, right = labelWidth() + c.endMs() * px;
+      int index = (int) ((event.getY() - 28 * dp) / row());
+      if (event.getY() >= 28 * dp && index >= 0 && index < elements.size()) {
+        Project.Clip clip = elements.get(index);
+        RectF box = bounds(clip, index);
+        if (box.contains(event.getX(), event.getY()) || event.getX() < labelWidth()) {
+          dragging = clip;
+          oldStart = clip.startMs;
+          oldIn = clip.inMs;
+          oldLength = clip.lengthMs;
           edge =
-              Math.abs(e.getX() - left) < 14 * dp
+              event.getX() >= labelWidth() && Math.abs(event.getX() - box.left) < 12 * dp
                   ? -1
-                  : Math.abs(e.getX() - right) < 14 * dp ? 1 : 0;
-          selected = c.id;
-          listener.select(c);
-          break;
+                  : event.getX() >= labelWidth()
+                          && Math.abs(event.getX() - (labelWidth() + clip.endMs() * px)) < 12 * dp
+                      ? 1
+                      : 0;
+          selected = clip.id;
+          listener.select(clip);
         }
       }
       if (dragging == null) listener.seek(time);
@@ -169,35 +214,43 @@ final class TimelineView extends View {
       invalidate();
       return true;
     }
-    if (e.getAction() == MotionEvent.ACTION_MOVE && dragging != null) {
-      long delta = (long) ((e.getX() - downX) / px);
-      Project.Clip c = dragging;
+    if (event.getAction() == MotionEvent.ACTION_MOVE && dragging != null) {
+      long delta = (long) ((event.getX() - downX) / px);
+      Project.Clip clip = dragging;
       if (edge == 0)
-        c.startMs = Math.max(0, Math.min(Project.MAX_MS - c.lengthMs, oldStart + delta));
+        clip.startMs = Math.max(0, Math.min(Project.MAX_MS - clip.lengthMs, oldStart + delta));
       else if (edge < 0) {
         delta = Math.max(-Math.min(oldStart, oldIn), Math.min(oldLength - 100, delta));
-        c.startMs = oldStart + delta;
-        c.inMs = oldIn + delta;
-        c.lengthMs = oldLength - delta;
+        clip.startMs = oldStart + delta;
+        clip.inMs = oldIn + delta;
+        clip.lengthMs = oldLength - delta;
       } else
-        c.lengthMs =
+        clip.lengthMs =
             Math.max(
                 100,
                 Math.min(
-                    Project.MAX_MS - c.startMs,
+                    Project.MAX_MS - clip.startMs,
                     Math.min(
-                        c.type.equals("image") ? Project.MAX_MS : c.sourceDurationMs - c.inMs,
+                        clip.type.equals("image")
+                            ? Project.MAX_MS
+                            : clip.sourceDurationMs - clip.inMs,
                         oldLength + delta)));
-      c.fadeInMs = Math.min(c.fadeInMs, c.lengthMs);
-      c.fadeOutMs = Math.min(c.fadeOutMs, c.lengthMs);
+      clip.fadeInMs = Math.min(clip.fadeInMs, clip.lengthMs);
+      clip.fadeOutMs = Math.min(clip.fadeOutMs, clip.lengthMs);
       invalidate();
       return true;
     }
-    if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL) {
+    if (event.getAction() == MotionEvent.ACTION_UP
+        || event.getAction() == MotionEvent.ACTION_CANCEL) {
       if (dragging != null) {
+        boolean edited =
+            dragging.startMs != oldStart
+                || dragging.inMs != oldIn
+                || dragging.lengthMs != oldLength;
         dragging = null;
-        listener.changed();
-      } else performClick();
+        if (edited) listener.changed();
+      }
+      performClick();
       getParent().requestDisallowInterceptTouchEvent(false);
       return true;
     }

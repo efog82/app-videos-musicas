@@ -1,6 +1,8 @@
 # Sonora Lab 0.4 — APKs experimentais
 
-[Descarregar fase 5 — versão cumulativa](https://github.com/efog82/app-videos-musicas/raw/refs/heads/develop/editor-avancado/downloads/experimental/Sonora-fase5-experimental.apk)
+[Descarregar Sonora Lab 0.4.1 — atualização experimental](https://github.com/efog82/app-videos-musicas/raw/refs/heads/develop/editor-avancado/downloads/experimental/Sonora-0.4.1-experimental.apk)
+
+A atualização 0.4.1 acrescenta remoção visível, identificação dos elementos na timeline, preview em ecrã inteiro e diagnóstico/correções de transcrição. [Validação e limitações da atualização](../../docs/VALIDATION-0.4.1.md). Os APKs por fase abaixo são a entrega 0.4 anterior, preservada para referência.
 
 Instala **Sonora Lab** ao lado do Sonora Offline anterior, sem o desinstalar nem substituir os seus dados. Android 8 ou posterior. Não é uma versão definitiva nem uma publicação na Play Store.
 

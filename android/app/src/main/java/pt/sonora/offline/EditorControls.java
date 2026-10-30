@@ -93,7 +93,7 @@ final class EditorControls implements AutoCloseable {
                 if(video&&action==2){trim(sequence,index);return;}
                 if(action==0&&index>0)Collections.swap(sequence.items,index,index-1);
                 else if(action==1&&index+1<sequence.items.size())Collections.swap(sequence.items,index,index+1);
-                else if(action==(video?3:2)){if(sequence.items.size()==1){m.status.setText("A sequência deve manter pelo menos um ficheiro. Podes escolher outro fundo.");return;}sequence.items.remove(index);}
+                else if(action==(video?3:2)){sequence.items.remove(index);if(sequence.items.isEmpty()){if(video){releaseVideo();videos=null;m.options.videosPath="";}else{closeSlides();photos=null;m.options.slidesPath="";}if(m.options.background.equals(video?"video":"slides")){m.options.background="black";m.bgSelect.setSelection(0);}persist();updateSummary();m.refresh();m.status.setText("Elemento removido. Os ficheiros originais foram preservados.");return;}}
                 saveSequence(sequence,video);manage(video);
             }).show();
         }).setNegativeButton("Fechar",null).show();

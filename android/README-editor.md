@@ -47,3 +47,7 @@ Não alterar scripts/APKs durante uma execução de testes. Resultados atuais em
 MP4 H.264/AAC; 720/1080/1440/2160p e 24/25/30/60 FPS apenas quando memória e codec aceitam. Não há garantia de desempenho 4K/60. Desenho e extração de frames podem ser lentos. Música/composição até dez minutos, áudio mono/estéreo, recursos de memória/disco limitados. Reamostragem linear e clamp de saturação; reduzir volumes se distorcer. Efeitos 2D procedurais, sem simulação física de fluidos ou separação de voz/instrumentos.
 
 Ver docs/EDITOR-ARCHITECTURE.md para análise, integração e riscos; docs/VALIDATION-EDITOR.md para validação real. É um protótipo experimental, não uma versão definitiva.
+
+## Atualização 0.4.1
+
+APK cumulativo: downloads/experimental/Sonora-0.4.1-experimental.apk, código 55. Atualiza o Lab existente; não desinstalar para preservar projetos. Inclui remoção junto à timeline, lista de elementos e preview em ecrã inteiro. A compilação atual por fase usa códigos 51..55; os APKs históricos 0.4 preservados usam 41..45. Ver docs/VALIDATION-0.4.1.md para evidência e limitações, em particular a transcrição Android 13.
