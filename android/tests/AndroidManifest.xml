@@ -1,0 +1,1 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="pt.sonora.offline.tests"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/><instrumentation android:name="pt.sonora.offline.SonoraTests" android:targetPackage="pt.sonora.offline" android:label="Sonora offline tests"/><application android:label="Sonora Tests"/></manifest>
