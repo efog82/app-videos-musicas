@@ -12,6 +12,11 @@ find "$B/classes" -name '*.class' -print0 | xargs -0 "$T/d8" --min-api 26 --lib 
 (cd "$B" && zip -q test.apk classes.dex)
 "$T/zipalign" -f 4 "$B/test.apk" "$B/aligned.apk"
 "$T/apksigner" sign --ks /workspace/android-tools/sonora-development.p12 --ks-key-alias sonora --ks-pass pass:android --out "$B/signed.apk" "$B/aligned.apk"
+if [[ "${SONORA_UI_BUILD_ONLY:-0}" == "1" ]]; then
+ "$T/apksigner" verify "$B/signed.apk"
+ echo 'APK de instrumentação compilado e assinado; testes de interface não executados.'
+ exit 0
+fi
 "$SDK/platform-tools/adb" install --no-incremental -r "$B/signed.apk"
 "$SDK/platform-tools/adb" shell am instrument -w -r pt.sonora.editor.uitests/pt.sonora.app.EditorUiInstrumentation > "$B/results.txt"
 cat "$B/results.txt"

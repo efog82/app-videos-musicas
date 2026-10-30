@@ -1,0 +1,3 @@
+Android 11/API30: system_server terminou com java.lang.IllegalStateException: Lost network stack. PackageManager e StorageManager ficaram indisponíveis (Broken pipe / NullPointerException ao instalar). A instrumentação da aplicação não chegou a executar.
+Android 9/API28 alternativo: boot concluído, mas instalação bloqueada por falha de transação do serviço package (Failed transaction 2147483646), antes de executar a instrumentação.
+O host não dispõe de /dev/kvm. Os emuladores requerem CPU emulada forçada, anunciada como não suportada sem acelerador pelo runtime atual. Não se atribuem estas falhas de serviços do sistema à aplicação. O APK principal e o APK de instrumentação compilam e têm assinatura verificada; os testes de UI desta atualização continuam não executados.

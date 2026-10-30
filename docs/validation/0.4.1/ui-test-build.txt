@@ -1,0 +1,8 @@
+----------
+1. WARNING in /workspace/app-videos-musicas/android/tests/EditorUiInstrumentation.java (at line 5)
+	import android.graphics.*;
+	       ^^^^^^^^^^^^^^^^
+The import android.graphics is never used
+----------
+1 problem (1 warning)
+APK de instrumentação compilado e assinado; testes de interface não executados.
