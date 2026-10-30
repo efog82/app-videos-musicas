@@ -16,7 +16,7 @@ python3 - "$PHASE" <<'PYBUILD'
 import sys
 from pathlib import Path
 phase=int(sys.argv[1])
-s=Path('AndroidManifest.xml').read_text().replace('android:versionCode="50"',f'android:versionCode="{50+phase}"').replace('android:versionName="0.4.1-experimental"',f'android:versionName="0.4.1-phase{phase}-experimental"')
+s=Path('AndroidManifest.xml').read_text().replace('android:versionCode="60"',f'android:versionCode="{60+phase}"').replace('android:versionName="0.6.0-experimental"',f'android:versionName="0.6.0-phase{phase}-experimental"')
 Path('.build/AndroidManifest.xml').write_text(s)
 PYBUILD
 "$TOOLS/aapt2" compile --dir res -o "$BUILD/resources.zip"

@@ -122,6 +122,59 @@ public final class CoreTests {
         !SpeechSupport.canAttempt("pt-PT", Arrays.asList("pt-BR")),
         "never silently change the requested Portuguese variant");
     check(SpeechSupport.error(9).contains("permiss"), "permission failure is diagnosed separately");
+    Project older =
+        Project.read(
+            new String(
+                java.nio.file.Files.readAllBytes(
+                    java.nio.file.Paths.get("tests/fixtures/project-0.4.1.json")),
+                java.nio.charset.StandardCharsets.UTF_8));
+    check(older.name.contains("0.4.1"), "opens actual old serializer fixture");
+    check(older.clips.get(0).originalAudio, "old video preserves default original audio");
+    check(
+        older.captions.get(0).font.isEmpty() && older.captions.get(0).color == 0xffffffff,
+        "old captions keep compatible style defaults");
+    String originalUri = older.clips.get(0).uri;
+    Project duplicate = ProjectActions.duplicate(older);
+    check(
+        !duplicate.id.equals(older.id) && duplicate.clips.get(0).uri.equals(originalUri),
+        "project duplicate uses new document identity and original media reference");
+    duplicate.clips.get(0).muted = true;
+    check(!older.clips.get(0).muted, "duplicated document is independent");
+    Project.Clip copied = ProjectActions.duplicateClip(older, older.clips.get(0));
+    check(
+        copied.startMs == 3000 && copied.inMs == 0 && copied.uri.equals(originalUri),
+        "clip duplicate appends without rewriting original");
+    Project.Clip left = older.clips.get(0);
+    Project.Clip right = ProjectActions.split(older, left, 1500);
+    check(
+        older.clips.get(0).lengthMs == 1500
+            && right.startMs == 1500
+            && right.inMs == 1500
+            && right.lengthMs == 1500,
+        "split produces contiguous non-destructive cuts");
+    check(
+        right.originalAudio && right.uri.equals(originalUri),
+        "split preserves audio flags and original URI");
+    int beforeSplit = older.clips.size();
+    try {
+      ProjectActions.split(older, right, right.startMs);
+      throw new AssertionError("invalid split");
+    } catch (org.json.JSONException expected) {
+      check(older.clips.size() == beforeSplit, "invalid split is atomic");
+    }
+    Project.Caption styled = older.captions.get(0);
+    styled.font = "mono";
+    styled.color = 0xffffd36f;
+    styled.size = 2;
+    styled.position = 1;
+    styled.animation = "fade";
+    Project round = older.copy();
+    check(
+        round.captions.get(0).color == 0xffffd36f && round.captions.get(0).font.equals("mono"),
+        "per-caption style survives JSON save/reopen");
+    check(
+        ProjectActions.estimatedBytes(older) > older.durationMs() * older.bitrate / 8000L,
+        "export estimate includes audio/container overhead");
     System.out.println(
         "PASS: "
             + count

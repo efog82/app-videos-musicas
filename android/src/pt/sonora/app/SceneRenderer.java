@@ -104,16 +104,26 @@ final class SceneRenderer implements AutoCloseable {
     if (project.showTitle && !project.title.trim().isEmpty())
       text(canvas, project.title, w, h * .27f, w * .058f, "sans", 255);
     long subtitleTime = ms - project.subtitleOffsetMs;
-    StringBuilder captions = new StringBuilder();
-    int alpha = 255;
+    java.util.LinkedHashMap<String, CaptionGroup> groups = new java.util.LinkedHashMap<>();
     if (project.showSubtitles)
       for (Project.Caption caption : project.captions)
         if (subtitleTime >= caption.startMs && subtitleTime < caption.endMs) {
+          String font = caption.font.isEmpty() ? project.subtitleStyle : caption.font;
+          String animation =
+              caption.animation.isEmpty() ? project.subtitleAnimation : caption.animation;
+          int size = caption.size < 0 ? project.subtitleSize : caption.size,
+              position = caption.position < 0 ? project.subtitlePosition : caption.position;
+          String key = font + ":" + size + ":" + position + ":" + caption.color;
+          CaptionGroup group = groups.get(key);
+          if (group == null) {
+            group = new CaptionGroup(font, size, position, caption.color);
+            groups.put(key, group);
+          }
           String value = caption.text;
-          if (project.subtitleAnimation.equals("fade"))
-            alpha =
+          if (animation.equals("fade"))
+            group.alpha =
                 Math.min(
-                    alpha,
+                    group.alpha,
                     (int)
                         (255
                             * Math.min(
@@ -121,7 +131,7 @@ final class SceneRenderer implements AutoCloseable {
                                 Math.min(
                                     (subtitleTime - caption.startMs) / 200f,
                                     (caption.endMs - subtitleTime) / 200f))));
-          if (project.subtitleAnimation.equals("word")) {
+          if (animation.equals("word")) {
             String[] words = value.split("\\s+");
             int count =
                 Math.max(
@@ -136,20 +146,33 @@ final class SceneRenderer implements AutoCloseable {
               part.append(words[i]).append(' ');
             value = part.toString();
           }
-          if (captions.length() > 0) captions.append('\n');
-          captions.append(value);
+          if (group.text.length() > 0) group.text.append('\n');
+          group.text.append(value);
         }
-    if (captions.length() > 0)
+    for (CaptionGroup group : groups.values())
       text(
           canvas,
-          captions.toString(),
+          group.text.toString(),
           w,
-          project.subtitlePosition == 1
-              ? h * .5f
-              : project.subtitlePosition == 2 ? h * .12f : h * .78f,
-          w * new float[] {.041f, .049f, .063f}[project.subtitleSize],
-          project.subtitleStyle,
-          Math.max(0, alpha));
+          group.position == 1 ? h * .5f : group.position == 2 ? h * .12f : h * .78f,
+          w * new float[] {.041f, .049f, .063f}[group.size],
+          group.font,
+          Math.max(0, group.alpha),
+          group.color);
+  }
+
+  static final class CaptionGroup {
+    final String font;
+    final int size, position, color;
+    int alpha = 255;
+    final StringBuilder text = new StringBuilder();
+
+    CaptionGroup(String f, int s, int p, int c) {
+      font = f;
+      size = s;
+      position = p;
+      color = c;
+    }
   }
 
   Bitmap source(Project.Clip clip, long ms, int w, int h) throws Exception {
@@ -230,7 +253,12 @@ final class SceneRenderer implements AutoCloseable {
   }
 
   void text(Canvas c, String value, int w, float y, float size, String style, int alpha) {
-    paint.setColor(Color.WHITE);
+    text(c, value, w, y, size, style, alpha, Color.WHITE);
+  }
+
+  void text(
+      Canvas c, String value, int w, float y, float size, String style, int alpha, int color) {
+    paint.setColor(color);
     paint.setAlpha(alpha);
     paint.setTextAlign(Paint.Align.CENTER);
     paint.setTypeface(

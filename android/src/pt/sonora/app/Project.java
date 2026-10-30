@@ -115,6 +115,8 @@ final class Project {
   static final class Caption {
     long startMs, endMs;
     String text;
+    String font = "", animation = "";
+    int color = 0xffffffff, size = -1, position = -1;
 
     Caption(long start, long end, String value) {
       startMs = start;
@@ -123,7 +125,15 @@ final class Project {
     }
 
     JSONObject json() throws JSONException {
-      return new JSONObject().put("startMs", startMs).put("endMs", endMs).put("text", text);
+      return new JSONObject()
+          .put("startMs", startMs)
+          .put("endMs", endMs)
+          .put("text", text)
+          .put("font", font)
+          .put("animation", animation)
+          .put("color", color)
+          .put("size", size)
+          .put("position", position);
     }
   }
 
@@ -216,7 +226,19 @@ final class Project {
         long start = v.getLong("startMs"), end = v.getLong("endMs");
         if (start < 0 || end <= start || end > 36000000000L)
           throw new JSONException("Tempos de legenda inválidos");
-        p.captions.add(new Caption(start, end, v.getString("text")));
+        Caption caption = new Caption(start, end, v.getString("text"));
+        caption.font = v.optString("font", "");
+        caption.animation = v.optString("animation", "");
+        caption.color = v.optInt("color", 0xffffffff);
+        caption.size = v.optInt("size", -1);
+        caption.position = v.optInt("position", -1);
+        if (!Arrays.asList("", "sans", "serif", "mono").contains(caption.font)
+            || !Arrays.asList("", "phrase", "fade", "word").contains(caption.animation)
+            || caption.size < -1
+            || caption.size > 2
+            || caption.position < -1
+            || caption.position > 2) throw new JSONException("Estilo de legenda inválido");
+        p.captions.add(caption);
       }
     p.effect = o.optString("effect", "bars");
     p.intensity = (float) o.optDouble("intensity", 1);
