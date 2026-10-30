@@ -18,30 +18,19 @@ final class Subtitles {
         + Long.parseLong(m.group(4));
   }
 
-  static ArrayList<Project.Caption> parse(String value) throws IOException {
-    String text = value.replace("\uFEFF", "").replace("\r\n", "\n").replace('\r', '\n').trim();
-    ArrayList<Project.Caption> result = new ArrayList<>();
-    if (text.isEmpty()) return result;
-    for (String block : text.split("\n\\s*\n")) {
-      String[] lines = block.split("\n");
-      int i = lines[0].contains("-->") ? 0 : 1;
-      if (i >= lines.length) throw new IOException("Bloco SRT sem tempos");
-      String[] times = lines[i].split("\\s*-->\\s*");
-      if (times.length != 2) throw new IOException("Separador SRT inválido");
-      long start = time(times[0]), end = time(times[1]);
-      if (start < 0 || end <= start || end > Project.MAX_MS)
-        throw new IOException("Legendas devem estar entre 0 e 5 minutos");
-      StringBuilder words = new StringBuilder();
-      for (int j = i + 1; j < lines.length; j++) {
-        if (words.length() > 0) words.append('\n');
-        words.append(lines[j]);
-      }
-      if (words.length() == 0) throw new IOException("Legenda sem texto");
-      result.add(new Project.Caption(start, end, words.toString()));
-      if (result.size() > 3000) throw new IOException("Demasiadas legendas");
-    }
-    Collections.sort(result, (a, b) -> Long.compare(a.startMs, b.startMs));
-    return result;
+  static ArrayList<Project.Caption> convert(pt.sonora.offline.SubtitleTrack track) {
+    ArrayList<Project.Caption> captions = new ArrayList<>();
+    for (pt.sonora.offline.SubtitleTrack.Cue cue : track.entries())
+      captions.add(new Project.Caption(cue.startMs, cue.endMs, cue.text));
+    return captions;
+  }
+
+  static ArrayList<Project.Caption> read(InputStream in) throws IOException {
+    return convert(pt.sonora.offline.SubtitleTrack.read(in));
+  }
+
+  static ArrayList<Project.Caption> parse(String text) throws IOException {
+    return convert(pt.sonora.offline.SubtitleTrack.parse(text));
   }
 
   static String format(long ms) {

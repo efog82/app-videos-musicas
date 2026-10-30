@@ -15,6 +15,7 @@ final class SceneRenderer implements AutoCloseable {
   final Map<String, MediaMetadataRetriever> videos = new HashMap<>();
   final Paint paint = new Paint(3);
   Project project;
+  final pt.sonora.offline.LegacyBridge legacy = new pt.sonora.offline.LegacyBridge();
 
   SceneRenderer(Context c, Project p) {
     context = c;
@@ -34,7 +35,10 @@ final class SceneRenderer implements AutoCloseable {
       if (!clip.type.equals("audio") && clip.active(ms)) {
         Bitmap bitmap = source(clip, ms, w, h);
         if (bitmap != null) {
-          float scale = Math.max(w / (float) bitmap.getWidth(), h / (float) bitmap.getHeight());
+          float scale =
+              (project.mediaFit
+                  ? Math.min(w / (float) bitmap.getWidth(), h / (float) bitmap.getHeight())
+                  : Math.max(w / (float) bitmap.getWidth(), h / (float) bitmap.getHeight()));
           float bw = bitmap.getWidth() * scale, bh = bitmap.getHeight() * scale;
           int alpha = 255;
           if (project.transition.equals("fade")) {
@@ -43,45 +47,109 @@ final class SceneRenderer implements AutoCloseable {
             alpha = (int) (Math.max(0, fade) * 255);
           }
           paint.setAlpha(alpha);
-          canvas.drawBitmap(
-              bitmap,
-              null,
-              new RectF((w - bw) / 2, (h - bh) / 2, (w + bw) / 2, (h + bh) / 2),
-              paint);
+          if (project.distortion > 0) {
+            int grid = 12;
+            float[] mesh = new float[(grid + 1) * (grid + 1) * 2];
+            int at = 0;
+            for (int y = 0; y <= grid; y++)
+              for (int x = 0; x <= grid; x++) {
+                mesh[at++] =
+                    (w - bw) / 2
+                        + bw * x / grid
+                        + (float) Math.sin(y * .7 + ms * .002)
+                            * project.distortion
+                            * features.energy
+                            * w
+                            * .05f;
+                mesh[at++] =
+                    (h - bh) / 2
+                        + bh * y / grid
+                        + (float) Math.sin(x * .7 + ms * .0016)
+                            * project.distortion
+                            * features.mid
+                            * h
+                            * .04f;
+              }
+            canvas.drawBitmapMesh(bitmap, grid, grid, mesh, 0, null, 0, paint);
+          } else
+            canvas.drawBitmap(
+                bitmap,
+                null,
+                new RectF((w - bw) / 2, (h - bh) / 2, (w + bw) / 2, (h + bh) / 2),
+                paint);
           paint.setAlpha(255);
           if (clip.type.equals("video")) bitmap.recycle();
         }
       }
+    if (project.effect.startsWith("legacy-"))
+      legacy.draw(
+          canvas,
+          w,
+          h,
+          Integer.parseInt(project.effect.substring(7)),
+          project.enhancedEffects,
+          project.fullEffect,
+          project.color,
+          project.intensity,
+          project.speed,
+          features.energy,
+          features.bass,
+          features.mid,
+          features.treble,
+          features.bins,
+          features.wave,
+          ms / 1000.0);
+    else VisualEffects.draw(canvas, w, h, ms / 1000f, project, features, paint);
     canvas.restore();
-    VisualEffects.draw(canvas, w, h, ms / 1000f, project, features, paint);
-    if (!project.title.trim().isEmpty())
+    if (project.showTitle && !project.title.trim().isEmpty())
       text(canvas, project.title, w, h * .27f, w * .058f, "sans", 255);
-    for (Project.Caption caption : project.captions)
-      if (ms >= caption.startMs && ms < caption.endMs) {
-        String value = caption.text;
-        int alpha = 255;
-        if (project.subtitleAnimation.equals("fade"))
-          alpha =
-              (int)
-                  (255
-                      * Math.min(
-                          1, Math.min((ms - caption.startMs) / 200f, (caption.endMs - ms) / 200f)));
-        if (project.subtitleAnimation.equals("word")) {
-          String[] words = value.split("\\s+");
-          int count =
-              Math.max(
-                  1,
-                  (int)
-                      Math.ceil(
-                          words.length
-                              * (ms - caption.startMs + 1)
-                              / (double) (caption.endMs - caption.startMs)));
-          StringBuilder b = new StringBuilder();
-          for (int i = 0; i < Math.min(words.length, count); i++) b.append(words[i]).append(' ');
-          value = b.toString();
+    long subtitleTime = ms - project.subtitleOffsetMs;
+    StringBuilder captions = new StringBuilder();
+    int alpha = 255;
+    if (project.showSubtitles)
+      for (Project.Caption caption : project.captions)
+        if (subtitleTime >= caption.startMs && subtitleTime < caption.endMs) {
+          String value = caption.text;
+          if (project.subtitleAnimation.equals("fade"))
+            alpha =
+                Math.min(
+                    alpha,
+                    (int)
+                        (255
+                            * Math.min(
+                                1,
+                                Math.min(
+                                    (subtitleTime - caption.startMs) / 200f,
+                                    (caption.endMs - subtitleTime) / 200f))));
+          if (project.subtitleAnimation.equals("word")) {
+            String[] words = value.split("\\s+");
+            int count =
+                Math.max(
+                    1,
+                    (int)
+                        Math.ceil(
+                            words.length
+                                * (subtitleTime - caption.startMs + 1)
+                                / (double) (caption.endMs - caption.startMs)));
+            StringBuilder part = new StringBuilder();
+            for (int i = 0; i < Math.min(words.length, count); i++)
+              part.append(words[i]).append(' ');
+            value = part.toString();
+          }
+          if (captions.length() > 0) captions.append('\n');
+          captions.append(value);
         }
-        text(canvas, value, w, h * .82f, w * .049f, project.subtitleStyle, Math.max(0, alpha));
-      }
+    if (captions.length() > 0)
+      text(
+          canvas,
+          captions.toString(),
+          w,
+          project.subtitlePosition == 1
+              ? h * .5f
+              : project.subtitlePosition == 2 ? h * .12f : h * .78f,
+          w * new float[] {.041f, .049f, .063f}[project.subtitleSize],
+          project.subtitleStyle,
+          Math.max(0, alpha));
   }
 
   Bitmap source(Project.Clip clip, long ms, int w, int h) throws Exception {
@@ -102,6 +170,41 @@ final class SceneRenderer implements AutoCloseable {
           b = BitmapFactory.decodeStream(in, null, opts);
         }
         if (b == null) throw new IOException("Não foi possível ler " + clip.name);
+        try (InputStream in = context.getContentResolver().openInputStream(Uri.parse(clip.uri))) {
+          android.media.ExifInterface exif = new android.media.ExifInterface(in);
+          int orientation = exif.getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1);
+          Matrix matrix = new Matrix();
+          switch (orientation) {
+            case 2:
+              matrix.setScale(-1, 1);
+              break;
+            case 3:
+              matrix.postRotate(180);
+              break;
+            case 4:
+              matrix.setScale(1, -1);
+              break;
+            case 5:
+              matrix.setScale(-1, 1);
+              matrix.postRotate(270);
+              break;
+            case 6:
+              matrix.postRotate(90);
+              break;
+            case 7:
+              matrix.setScale(-1, 1);
+              matrix.postRotate(90);
+              break;
+            case 8:
+              matrix.postRotate(270);
+              break;
+          }
+          Bitmap rotated = Bitmap.createBitmap(b, 0, 0, b.getWidth(), b.getHeight(), matrix, true);
+          if (rotated != b) b.recycle();
+          b = rotated;
+        } catch (IOException ignored) {
+        }
+
         if (images.size() >= 2) {
           String old = images.keySet().iterator().next();
           images.remove(old).recycle();

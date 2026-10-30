@@ -28,6 +28,8 @@ public final class SubtitleTrack {
         long max=0;for(int i=0;i<cues.length;i++){max=Math.max(max,cues[i].endMs);maxEnd[i]=max;}
     }
     public int size(){return cues.length;}
+    /** Read-only access for the non-destructive multitrack editor. */
+    public List<Cue> entries(){return Collections.unmodifiableList(Arrays.asList(cues.clone()));}
     public long firstStartMs(){return cues[0].startMs;}
     public long lastEndMs(){return maxEnd[maxEnd.length-1];}
     public static SubtitleTrack load(File file)throws IOException{

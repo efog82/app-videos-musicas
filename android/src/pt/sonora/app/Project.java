@@ -6,7 +6,7 @@ import org.json.*;
 /** Non-destructive document. Times are milliseconds on a common project clock. */
 final class Project {
   static final int SCHEMA = 1;
-  static final long MAX_MS = 300000;
+  static final long MAX_MS = 600000;
   String id = UUID.randomUUID().toString(), name = "Novo projeto", title = "";
   final ArrayList<Clip> clips = new ArrayList<>();
   final ArrayList<Caption> captions = new ArrayList<>();
@@ -15,9 +15,18 @@ final class Project {
       subtitleAnimation = "phrase",
       transition = "none",
       syncBand = "energy";
-  float intensity = 1, speed = 1, zoom = 1, rotation = 0;
+  float intensity = 1, speed = 1, zoom = 1, rotation = 0, distortion;
   int density = 48, color = 0xffb7a4ff, resolution = 720, fps = 24, bitrate = 4000000;
-  boolean vertical = true;
+  boolean vertical = true,
+      square,
+      mediaFit,
+      showTitle = true,
+      showSubtitles = true,
+      enhancedEffects = true,
+      fullEffect,
+      autoImages = true;
+  int subtitleSize = 1, subtitlePosition;
+  long subtitleOffsetMs;
 
   static final class Clip {
     String id = UUID.randomUUID().toString(), uri = "", name = "", type = "audio";
@@ -145,6 +154,7 @@ final class Project {
         .put("speed", speed)
         .put("density", density)
         .put("color", color)
+        .put("distortion", distortion)
         .put("syncBand", syncBand)
         .put("zoom", zoom)
         .put("rotation", rotation)
@@ -154,7 +164,17 @@ final class Project {
         .put("resolution", resolution)
         .put("fps", fps)
         .put("bitrate", bitrate)
-        .put("vertical", vertical);
+        .put("vertical", vertical)
+        .put("square", square)
+        .put("mediaFit", mediaFit)
+        .put("showTitle", showTitle)
+        .put("showSubtitles", showSubtitles)
+        .put("enhancedEffects", enhancedEffects)
+        .put("fullEffect", fullEffect)
+        .put("autoImages", autoImages)
+        .put("subtitleSize", subtitleSize)
+        .put("subtitlePosition", subtitlePosition)
+        .put("subtitleOffsetMs", subtitleOffsetMs);
   }
 
   Project copy() throws JSONException {
@@ -173,7 +193,7 @@ final class Project {
     p.name = o.optString("name", "Projeto");
     p.title = o.optString("title");
     JSONArray a = o.getJSONArray("clips");
-    if (a.length() > 32) throw new JSONException("Máximo de 32 clips");
+    if (a.length() > 10000) throw new JSONException("Documento demasiado grande");
     HashSet<String> ids = new HashSet<>();
     for (int i = 0; i < a.length(); i++) {
       Clip c = Clip.read(a.getJSONObject(i));
@@ -185,7 +205,7 @@ final class Project {
       for (int i = 0; i < s.length(); i++) {
         JSONObject v = s.getJSONObject(i);
         long start = v.getLong("startMs"), end = v.getLong("endMs");
-        if (start < 0 || end <= start || end > MAX_MS)
+        if (start < 0 || end <= start || end > 36000000000L)
           throw new JSONException("Tempos de legenda inválidos");
         p.captions.add(new Caption(start, end, v.getString("text")));
       }
@@ -196,14 +216,33 @@ final class Project {
     p.color = o.optInt("color", 0xffb7a4ff);
     p.zoom = (float) o.optDouble("zoom", 1);
     p.rotation = (float) o.optDouble("rotation", 0);
+    p.distortion = (float) o.optDouble("distortion", 0);
     p.syncBand = o.optString("syncBand", "energy");
     p.transition = o.optString("transition", "none");
     p.subtitleStyle = o.optString("subtitleStyle", "sans");
     p.subtitleAnimation = o.optString("subtitleAnimation", "phrase");
     p.vertical = o.optBoolean("vertical", true);
+    p.square = o.optBoolean("square");
+    p.mediaFit = o.optBoolean("mediaFit");
+    p.showTitle = o.optBoolean("showTitle", true);
+    p.showSubtitles = o.optBoolean("showSubtitles", true);
+    p.enhancedEffects = o.optBoolean("enhancedEffects", true);
+    p.fullEffect = o.optBoolean("fullEffect");
+    p.autoImages = o.optBoolean("autoImages", true);
+    p.subtitleSize = o.optInt("subtitleSize", 1);
+    p.subtitlePosition = o.optInt("subtitlePosition");
+    p.subtitleOffsetMs = o.optLong("subtitleOffsetMs");
     p.resolution = o.optInt("resolution", 720);
     p.fps = o.optInt("fps", 24);
     p.bitrate = o.optInt("bitrate", 4000000);
+    if (!Float.isFinite(p.distortion) || p.distortion < 0 || p.distortion > 1)
+      throw new JSONException("Distorção inválida");
+    if (p.subtitleSize < 0
+        || p.subtitleSize > 2
+        || p.subtitlePosition < 0
+        || p.subtitlePosition > 2
+        || Math.abs(p.subtitleOffsetMs) > 600000)
+      throw new JSONException("Definições de legenda inválidas");
     if (p.name.length() > 160
         || p.title.length() > 200
         || !Arrays.asList("energy", "bass", "mid", "treble", "beat").contains(p.syncBand)
@@ -216,7 +255,15 @@ final class Project {
                 "kaleidoscope",
                 "fractal",
                 "fluid",
-                "none")
+                "none",
+                "legacy-0",
+                "legacy-1",
+                "legacy-2",
+                "legacy-3",
+                "legacy-4",
+                "legacy-5",
+                "legacy-6",
+                "legacy-7")
             .contains(p.effect)
         || !Arrays.asList("none", "fade").contains(p.transition)
         || !Arrays.asList("phrase", "fade", "word").contains(p.subtitleAnimation)

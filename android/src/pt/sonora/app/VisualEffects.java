@@ -53,7 +53,7 @@ final class VisualEffects {
       brush.setStyle(Paint.Style.FILL);
       float gap = w / (float) (count + 3);
       for (int i = 0; i < count; i++) {
-        float v = f.bins[Math.min(31, i * 32 / count)];
+        float v = f.bins[Math.min(f.bins.length - 1, i * f.bins.length / count)];
         float x = gap * (i + 1.5f);
         c.drawRoundRect(
             x,
@@ -68,7 +68,7 @@ final class VisualEffects {
       Path path = new Path();
       for (int i = 0; i <= count * 3; i++) {
         double a = i * 2 * Math.PI / (count * 3);
-        int bin = (i * 32 / (count * 3)) % 32;
+        int bin = (i * f.bins.length / (count * 3)) % f.bins.length;
         float r = (100 + 90 * f.bins[bin] * amount + 25 * f.bass) * scale;
         float x = cx + (float) Math.cos(a) * r, y = cy + (float) Math.sin(a) * r;
         if (i == 0) path.moveTo(x, y);

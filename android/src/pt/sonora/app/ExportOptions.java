@@ -5,11 +5,11 @@ import java.util.*;
 
 final class ExportOptions {
   static int width(Project p) {
-    return p.vertical ? p.resolution : p.resolution * 16 / 9;
+    return p.square || p.vertical ? p.resolution : p.resolution * 16 / 9;
   }
 
   static int height(Project p) {
-    return p.vertical ? p.resolution * 16 / 9 : p.resolution;
+    return p.square || !p.vertical ? p.resolution : p.resolution * 16 / 9;
   }
 
   static String supportedCodec(Project p) throws Exception {

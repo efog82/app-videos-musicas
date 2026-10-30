@@ -1,31 +1,49 @@
-# Sonora para Android — experimental
+# Sonora Lab — editor audiovisual experimental
 
-APK nativo, sem ligação ao servidor Flask, sem permissões de Internet, sem publicidade e sem dependências pagas. Android 8 ou posterior (API 26). Escolhe música e imagem com o seletor do sistema; escreve o MP4 na pasta escolhida pelo utilizador.
+Android 8+, processamento local, sem permissão INTERNET. Coexiste com Sonora Offline 0.3 e conserva o seu motor no **Modo compatível**. O APK anterior e main não são substituídos.
 
-Usa MediaExtractor/MediaCodec para descodificar áudio PCM e codificar AAC; Canvas/OpenGL ES para desenhar título e barras reativas à energia da música; MediaCodec para H.264 e MediaMuxer para MP4. Não utiliza FFmpeg no telefone.
+## Experimentar
 
-## Instalar
+1. Instalar o APK experimental da fase desejada; recomenda-se a fase 5, cumulativa.
+2. No separador Projeto importar música, vídeo ou imagens. O vídeo mantém o som por defeito no editor novo.
+3. Selecionar clips na timeline. Arrastar corpo para deslocar ou extremidades para cortar; o diálogo de tempos permite precisão em segundos.
+4. Reproduzir, pausar ou procurar. A primeira reprodução prepara a mistura e a análise local. O botão ▥ recolhe/mostra preview e timeline para dar espaço às ferramentas.
+5. Ajustar Áudio, Efeitos e Legendas. No Áudio, separar cria faixa referenciada e silencia apenas o som associado ao clip; extrair escreve M4A sem modificar a origem.
+6. Guardar projeto (💾), abrir projetos nomeados ou exportar/importar JSON. O JSON referencia a mídia, não a inclui. Relocalizar a origem se o ficheiro for movido.
+7. Exportar verifica as capacidades reais. Escolher Guardar MP4, Reproduzir ou Partilhar quando concluir. Cancelamento disponível na aplicação e notificação. Exportação executa em serviço em primeiro plano, sujeita às regras de bateria do Android.
 
-Transfere `dist/Sonora.apk` para o Android e abre-o. Se o sistema pedir, permite a instalação de aplicações desta origem para o navegador ou gestor de ficheiros utilizado. Podes desativar essa permissão após a instalação. Não é necessário desativar o Play Protect.
+O Modo compatível mantém as sequências, repetição, opções de fundo, efeitos e funções da 0.3. A versão instalada anteriormente tem dados privados próprios e não é migrada automaticamente. Os originais nunca são apagados pelo editor.
 
-Abre Sonora, escolhe uma música até 5 minutos, opcionalmente uma imagem, escreve um título, escolhe a orientação e toca em Gerar vídeo. Mantém a app aberta durante o processo. Quando terminar, toca em Guardar vídeo e escolhe a pasta. A geração pode aquecer o dispositivo e demorar vários minutos. Usa apenas conteúdos autorizados.
+## Legendas e reconhecimento
 
-## Construir neste ambiente
+SRT conserva o parser 0.3 (UTF-8, UTF-16/BOM, Windows-1252), edição de texto/tempos e exportação. Letra conhecida: uma frase por linha e Marcar agora durante a reprodução; rever os tempos finais. Animação por palavras sem tempos individuais é identificada como ritmo estimado.
 
-Java 21, curl, unzip, zip e keytool; o compilador Eclipse gera bytecode Java 8. Ferramentas oficiais Android API/build tools 35 e compilador ECJ 3.38.0 são descarregados com verificação dos checksums publicados via HTTPS.
+Transcrição de ficheiros só em Android 13+ com serviço on-device e modelo pt-PT instalado. O motor pode não suportar ficheiros, canto, sessões segmentadas ou tempos por palavra. Se não fornecer tempos, é criado um rascunho a editar. Sem motor/modelo, a aplicação informa da indisponibilidade e não usa serviços online. Esta integração requer teste em dispositivo compatível.
+
+## Construir
 
 ```sh
 cd /workspace/app-videos-musicas
 ./android/setup-tools.sh
-./android/build.sh
+SONORA_PHASE=5 ./android/build-editor.sh
+./android/test-core.sh
 ```
 
-Saída: `android/dist/Sonora.apk`. Assinatura de desenvolvimento v2/v3; chave em `/workspace/android-tools/sonora-development.p12`, fora do repositório. Preserva-a para instalar atualizações sobre esta versão. Não é uma configuração de assinatura para publicação na Play Store.
+`SONORA_PHASE=1..5` ativa progressivamente os painéis. Saída: `android/dist/Sonora-faseN-experimental.apk`. Pacote pt.sonora.editor, versão 0.4 fase N; chave de teste mantida fora do repositório em /workspace/android-tools/sonora-development.p12. Não usar esta assinatura de desenvolvimento para distribuição definitiva. Fases mais recentes atualizam o mesmo Lab; Android bloqueia instalar um código de versão inferior por cima, portanto não se recomenda downgrade/desinstalação que perca projetos.
 
-## Estado da validação
+O build original 0.3 permanece em `android/build.sh`, com Gradle/Android Studio também preservados em app/. A compilação experimental é separada e inclui o código original com uma adaptação de autoridade do provider para coexistência.
 
-Compilação e verificação de assinatura APK executadas neste ambiente. Não há dispositivo Android nem emulador configurado; conversão nativa e instalação ainda não foram verificadas em execução. Os testes Python na raiz pertencem à versão web e não validam o APK.
+Teste Android separado (com emulador ou dispositivo ligado):
 
-## Limitações
+```sh
+SONORA_PHASE=5 ./android/build-editor.sh
+./android/test-device.sh
+```
 
-Versão experimental. Requer codificadores H.264 e AAC e OpenGL ES 2 suportados pelo dispositivo. Áudio PCM de 16 bits suportado pelo descodificador Android; alguns formatos podem ser rejeitados. Máximo de 5 minutos, formatos 720×1280 e 1280×720 a 24 fps. A animação representa a energia da música, não uma forma de onda exata. Sem serviço de fundo: manter a app aberta; interromper ou o Android terminar o processo pode perder a conversão. Ficheiros intermédios eliminados no final; vídeo gerado retido na cache até ser substituído ou eliminado pelo Android. Não promete compatibilidade com todos os aparelhos.
+Não alterar scripts/APKs durante uma execução de testes. Resultados atuais em docs/VALIDATION-EDITOR.md e android/.build/device-test/results.txt.
+
+## Limites
+
+MP4 H.264/AAC; 720/1080/1440/2160p e 24/25/30/60 FPS apenas quando memória e codec aceitam. Não há garantia de desempenho 4K/60. Desenho e extração de frames podem ser lentos. Música/composição até dez minutos, áudio mono/estéreo, recursos de memória/disco limitados. Reamostragem linear e clamp de saturação; reduzir volumes se distorcer. Efeitos 2D procedurais, sem simulação física de fluidos ou separação de voz/instrumentos.
+
+Ver docs/EDITOR-ARCHITECTURE.md para análise, integração e riscos; docs/VALIDATION-EDITOR.md para validação real. É um protótipo experimental, não uma versão definitiva.

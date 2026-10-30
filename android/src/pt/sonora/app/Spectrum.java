@@ -4,11 +4,11 @@ package pt.sonora.app;
 final class Spectrum {
   static final class Features {
     float energy, bass, mid, treble, beat;
-    final float[] bins = new float[32];
+    final float[] bins = new float[48], wave = new float[256];
   }
 
   static Features analyse(short[] mono, int sampleRate, float previousBass) {
-    int n = 512;
+    int n = 2048;
     double[] real = new double[n], imag = new double[n];
     double energy = 0;
     for (int i = 0; i < n; i++) {
@@ -40,11 +40,12 @@ final class Spectrum {
         }
     }
     Features f = new Features();
+    for (int i = 0; i < 256; i++) f.wave[i] = i * 8 < mono.length ? mono[i * 8] / 32768f : 0;
     f.energy = (float) Math.min(1, Math.sqrt(energy / n) * 3);
     double lo = 0, mid = 0, hi = 0;
     for (int k = 1; k < n / 2; k++) {
       double hz = k * sampleRate / (double) n, mag = Math.hypot(real[k], imag[k]) / n;
-      int bin = Math.min(31, (int) (Math.log(1 + hz / 40) / Math.log(1 + sampleRate / 80.0) * 32));
+      int bin = Math.min(47, (int) (Math.log(1 + hz / 40) / Math.log(1 + sampleRate / 80.0) * 48));
       f.bins[bin] = Math.max(f.bins[bin], (float) Math.min(1, mag * 12));
       if (hz < 250) lo += mag * mag;
       else if (hz < 4000) mid += mag * mag;

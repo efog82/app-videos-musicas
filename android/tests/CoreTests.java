@@ -78,7 +78,7 @@ public final class CoreTests {
       } catch (java.io.IOException expected) {
         count++;
       }
-    short[] silence = new short[512];
+    short[] silence = new short[2048];
     check(Spectrum.analyse(silence, 12000, 0).energy == 0, "silence has no energy");
     Spectrum.Features bass = tone(93.75), mid = tone(1007.8125), high = tone(5015.625);
     check(bass.bass > bass.mid * 10 && bass.bass > bass.treble * 10, "bass band isolated");
@@ -100,7 +100,7 @@ public final class CoreTests {
   }
 
   static Spectrum.Features tone(double hz) {
-    short[] s = new short[512];
+    short[] s = new short[2048];
     for (int i = 0; i < s.length; i++)
       s[i] = (short) (Math.sin(i * 2 * Math.PI * hz / 12000) * 12000);
     return Spectrum.analyse(s, 12000, 0);

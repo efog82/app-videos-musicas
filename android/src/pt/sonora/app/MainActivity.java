@@ -23,7 +23,8 @@ public class MainActivity extends Activity {
   PreviewView preview;
   TimelineView timeline;
   LinearLayout root, panel;
-  ScrollView tracksScroll; int viewMode;
+  ScrollView tracksScroll;
+  int viewMode;
   ProgressBar progressBar;
   TextView status, time, heading;
   Button play;
@@ -50,6 +51,9 @@ public class MainActivity extends Activity {
     super.onCreate(state);
     density = getResources().getDisplayMetrics().density;
     store = new ProjectStore(this);
+    String previousOutput = getSharedPreferences("editor-export", 0).getString("output", "");
+    if (!previousOutput.isEmpty() && new File(previousOutput).isFile())
+      result = new File(previousOutput);
     try {
       File f = new File(store.directory, "autosave.json");
       if (f.exists()) project = store.load(f);
@@ -74,15 +78,25 @@ public class MainActivity extends Activity {
     LinearLayout header = row(root);
     heading = label(header, "SONORA · " + project.name, 16);
     header.removeView(heading);
-    header.addView(heading, new LinearLayout.LayoutParams(0, dp(48), 1));heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);
-    icon(header,"▥","Alternar pré-visualização e linha temporal",v->{viewMode=(viewMode+1)%4;preview.setVisibility(viewMode==2||viewMode==3?View.GONE:View.VISIBLE);tracksScroll.setVisibility(viewMode==1||viewMode==3?View.GONE:View.VISIBLE);});
+    header.addView(heading, new LinearLayout.LayoutParams(0, dp(48), 1));
+    heading.setSingleLine(true);
+    heading.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    icon(
+        header,
+        "▥",
+        "Alternar pré-visualização e linha temporal",
+        v -> {
+          viewMode = (viewMode + 1) % 4;
+          preview.setVisibility(viewMode == 2 || viewMode == 3 ? View.GONE : View.VISIBLE);
+          tracksScroll.setVisibility(viewMode == 1 || viewMode == 3 ? View.GONE : View.VISIBLE);
+        });
     icon(header, "💾", "Guardar projeto", v -> saveProject());
     icon(header, "↗", "Exportar projeto JSON", v -> exportProject());
     preview = new PreviewView(this);
     int screen = getResources().getConfiguration().screenHeightDp;
     root.addView(
         preview,
-        new LinearLayout.LayoutParams(-1, dp(Math.max(64, Math.min(112, (screen-460)/2)))));
+        new LinearLayout.LayoutParams(-1, dp(Math.max(64, Math.min(112, (screen - 460) / 2)))));
     preview.listener =
         new PreviewView.Listener() {
           public void position(long ms) {
@@ -129,8 +143,11 @@ public class MainActivity extends Activity {
     scroller.addView(timeline);
     tracksScroll = new ScrollView(this);
     tracksScroll.addView(scroller);
-    root.addView(tracksScroll, new LinearLayout.LayoutParams(-1, dp(screen<600?64:80)));
-    if(screen<600){tracksScroll.setVisibility(View.GONE);viewMode=1;}
+    root.addView(tracksScroll, new LinearLayout.LayoutParams(-1, dp(screen < 600 ? 64 : 80)));
+    if (screen < 600) {
+      tracksScroll.setVisibility(View.GONE);
+      viewMode = 1;
+    }
     timeline.listener =
         new TimelineView.Listener() {
           public void select(Project.Clip c) {
@@ -145,6 +162,7 @@ public class MainActivity extends Activity {
           }
 
           public void changed() {
+            project.autoImages = false;
             MainActivity.this.changed();
           }
         };
@@ -178,6 +196,7 @@ public class MainActivity extends Activity {
     preview.setProject(project);
     showTab(tab);
     refresh();
+    if (EditorExportService.running) handler.post(exportTick);
   }
 
   int dp(float n) {
@@ -315,6 +334,36 @@ public class MainActivity extends Activity {
 
   void projectTab() {
     label(panel, "PROJETO · edição não destrutiva", 15);
+    button(
+        "Modo compatível · Todas as funções Sonora 0.3",
+        () -> {
+          if (EditorExportService.running) {
+            message("Aguarda a exportação atual.");
+            return;
+          }
+          startActivity(new Intent(this, pt.sonora.offline.MainActivity.class));
+        });
+    button(
+        "Enquadramento: " + (project.mediaFit ? "Ajustar" : "Preencher"),
+        () -> {
+          project.mediaFit = !project.mediaFit;
+          changed();
+          showTab(tab);
+        });
+    button(
+        project.showTitle ? "Ocultar título" : "Mostrar título",
+        () -> {
+          project.showTitle = !project.showTitle;
+          changed();
+          showTab(tab);
+        });
+    button(
+        "Distribuir fotografias pela música",
+        () -> {
+          project.autoImages = true;
+          arrangeImages();
+          changed();
+        });
     button("♫ Importar música", () -> pick(10, "audio/*", true));
     button("▣ Importar vídeo (com áudio original)", () -> pick(11, "video/*", true));
     button("▧ Importar imagens", () -> pick(12, "image/*", true));
@@ -440,6 +489,7 @@ public class MainActivity extends Activity {
                 copy.fadeOutMs = Math.min(copy.fadeOutMs, copy.lengthMs);
                 copy.validate();
                 project.clips.set(project.clips.indexOf(c), copy);
+                if (copy.type.equals("image")) project.autoImages = false;
                 changed();
                 showTab(tab);
               } catch (Exception e) {
@@ -498,6 +548,32 @@ public class MainActivity extends Activity {
   }
 
   void effectsTab() {
+    button(
+        "Efeitos anteriores · Sonora 0.3",
+        () ->
+            choice(
+                "Estilos preservados",
+                pt.sonora.offline.Options.NAMES,
+                0,
+                i -> {
+                  project.effect = "legacy-" + i;
+                  changed();
+                  showTab(tab);
+                }));
+    button(
+        project.enhancedEffects ? "Acabamento detalhado" : "Modo leve original",
+        () -> {
+          project.enhancedEffects = !project.enhancedEffects;
+          changed();
+          showTab(tab);
+        });
+    button(
+        project.fullEffect ? "Composição em todo o ecrã" : "Composição centralizada",
+        () -> {
+          project.fullEffect = !project.fullEffect;
+          changed();
+          showTab(tab);
+        });
     label(panel, "EFEITOS · parâmetros guardados no projeto", 15);
     button(
         "✦ "
@@ -530,6 +606,7 @@ public class MainActivity extends Activity {
     slider("Intensidade", project.intensity, 0, 3, n -> project.intensity = n);
     slider("Velocidade", project.speed, .1f, 4, n -> project.speed = n);
     slider("Densidade", project.density, 8, 120, n -> project.density = n.intValue());
+    slider("Distorção do fundo", project.distortion, 0, 1, n -> project.distortion = n);
     slider("Zoom", project.zoom, 1, 3, n -> project.zoom = n);
     slider("Rotação", project.rotation, -180, 180, n -> project.rotation = n);
     button(
@@ -627,6 +704,22 @@ public class MainActivity extends Activity {
     }
   }
 
+  void arrangeImages() {
+    ArrayList<Project.Clip> images = new ArrayList<>();
+    long duration = 0;
+    for (Project.Clip c : project.clips) {
+      if (c.type.equals("image")) images.add(c);
+      else duration = Math.max(duration, c.endMs());
+    }
+    if (duration == 0) duration = 10000;
+    for (int i = 0; i < images.size(); i++) {
+      Project.Clip c = images.get(i);
+      c.startMs = i * duration / images.size();
+      c.lengthMs = Math.max(100, (i + 1) * duration / images.size() - c.startMs);
+      c.inMs = 0;
+    }
+  }
+
   int nextAudioTrack() {
     int n = 2;
     for (Project.Clip c : project.clips) if (c.type.equals("audio")) n = Math.max(n, c.track + 1);
@@ -634,7 +727,73 @@ public class MainActivity extends Activity {
   }
 
   void captionsTab() {
+    button(
+        project.showSubtitles ? "Ocultar legendas" : "Mostrar legendas",
+        () -> {
+          project.showSubtitles = !project.showSubtitles;
+          changed();
+          showTab(tab);
+        });
+    button(
+        "Posição das legendas",
+        () ->
+            choice(
+                "Posição",
+                new String[] {"Em baixo", "Ao centro", "Em cima"},
+                project.subtitlePosition,
+                i -> {
+                  project.subtitlePosition = i;
+                  changed();
+                }));
+    button(
+        "Tamanho das legendas",
+        () ->
+            choice(
+                "Tamanho",
+                new String[] {"Pequeno", "Médio", "Grande"},
+                project.subtitleSize,
+                i -> {
+                  project.subtitleSize = i;
+                  changed();
+                }));
+    button(
+        "Atraso / avanço das legendas",
+        () -> {
+          LinearLayout f = fields();
+          EditText offset =
+              input(f, "Segundos (-600 a 600)", String.valueOf(project.subtitleOffsetMs / 1000.0));
+          new AlertDialog.Builder(this)
+              .setView(f)
+              .setPositiveButton(
+                  "Aplicar",
+                  (d, w) -> {
+                    try {
+                      long ms = seconds(offset);
+                      if (Math.abs(ms) > 600000) throw new Exception();
+                      project.subtitleOffsetMs = ms;
+                      changed();
+                    } catch (Exception e) {
+                      message("Usa um valor entre -600 e 600 segundos.");
+                    }
+                  })
+              .setNegativeButton("Cancelar", null)
+              .show();
+        });
     label(panel, "LEGENDAS · texto e tempos editáveis", 15);
+    button(
+        "Remover todas as legendas",
+        () ->
+            new AlertDialog.Builder(this)
+                .setMessage("Remover as legendas apenas deste projeto?")
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton(
+                    "Remover",
+                    (d, w) -> {
+                      project.captions.clear();
+                      changed();
+                      showTab(tab);
+                    })
+                .show());
     button("＋ Adicionar legenda manual", () -> editCaption(null));
     button("Importar SRT", () -> pick(14, "*/*", false));
     button(
@@ -751,6 +910,7 @@ public class MainActivity extends Activity {
     if (lastLyric != null && position > lastLyric.startMs) lastLyric.endMs = position;
     lastLyric = new Project.Caption(position, project.durationMs(), lyricLines[lyricIndex++]);
     project.captions.add(lastLyric);
+    preview.updateAnnotations(project);
     try {
       store.save(project, true);
     } catch (Exception e) {
@@ -779,10 +939,11 @@ public class MainActivity extends Activity {
         () ->
             choice(
                 "Formato",
-                new String[] {"Reels / TikTok / Shorts · 9:16", "YouTube · 16:9"},
+                new String[] {"Reels / TikTok / Shorts · 9:16", "YouTube · 16:9", "Quadrado · 1:1"},
                 project.vertical ? 0 : 1,
                 i -> {
                   project.vertical = i == 0;
+                  project.square = i == 2;
                   changed();
                   showTab(tab);
                 }));
@@ -832,8 +993,12 @@ public class MainActivity extends Activity {
     Button cancel = button("Cancelar exportação", () -> {});
     cancel.setOnClickListener(
         v -> {
-          if (exporter != null) exporter.cancelled = true;
+          if (EditorExportService.engine != null) EditorExportService.engine.cancelled = true;
         });
+    if (result != null && result.isFile()) {
+      button("Reproduzir MP4", () -> shareResult(false));
+      button("Partilhar MP4", () -> shareResult(true));
+    }
     if (result != null && result.isFile())
       button("Guardar MP4 no telemóvel", () -> createBinary(20, "video/mp4", "sonora.mp4"));
     label(
@@ -872,7 +1037,7 @@ public class MainActivity extends Activity {
         i -> {
           try {
             Project next = store.load(files[i]);
-            store.save(project, true);
+            store.save(project, false);
             project = next;
             selected = null;
             position = 0;
@@ -923,34 +1088,70 @@ public class MainActivity extends Activity {
 
   void exportVideo() {
     try {
+      if (pt.sonora.offline.LegacyBridge.exporting()) {
+        message("Aguarda a exportação do modo compatível.");
+        return;
+      }
       Project snapshot = project.copy();
       ExportOptions.supportedCodec(snapshot);
+      if (Build.VERSION.SDK_INT >= 33
+          && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+              != PackageManager.PERMISSION_GRANTED)
+        requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, 41);
+      File document = new File(getFilesDir(), "export-project-" + UUID.randomUUID() + ".json");
+      try (OutputStream out = new FileOutputStream(document)) {
+        out.write(snapshot.json().toString().getBytes(StandardCharsets.UTF_8));
+      }
+      Intent intent =
+          new Intent(this, EditorExportService.class)
+              .putExtra("projectPath", document.getAbsolutePath());
       setBusy(true);
-      exporter = new EditorExporter(this);
-      EditorExporter active = exporter;
-      File output = new File(getCacheDir(), "editor-result.mp4");
-      worker.execute(
-          () -> {
-            try {
-              active.export(snapshot, output, m -> runOnUiThread(() -> message(m)));
-              runOnUiThread(
-                  () -> {
-                    result = output;
-                    message("MP4 concluído. Escolhe Guardar MP4 no telemóvel.");
-                  });
-            } catch (Exception e) {
-              runOnUiThread(() -> message(e.getMessage()));
-            } finally {
-              runOnUiThread(
-                  () -> {
-                    exporter = null;
-                    setBusy(false);
-                    showTab("Exportar");
-                  });
-            }
-          });
+      message("A iniciar exportação local em segundo plano…");
+      startForegroundService(intent);
+      handler.postDelayed(exportTick, 300);
     } catch (Exception e) {
+      setBusy(false);
       message(e.getMessage());
+    }
+  }
+
+  final Runnable exportTick =
+      new Runnable() {
+        public void run() {
+          if (EditorExportService.running) {
+            setBusy(true);
+            message(EditorExportService.phase);
+            handler.postDelayed(this, 300);
+          } else {
+            setBusy(false);
+            if (!EditorExportService.error.isEmpty()) message(EditorExportService.error);
+            else if (!EditorExportService.output.isEmpty()) {
+              result = new File(EditorExportService.output);
+              message("MP4 concluído. Podes guardar, reproduzir ou partilhar.");
+            }
+            showTab("Exportar");
+          }
+        }
+      };
+
+  Uri resultUri() {
+    return Uri.parse("content://" + getPackageName() + ".legacy.videos/" + result.getName());
+  }
+
+  void shareResult(boolean share) {
+    if (result == null || !result.exists()) return;
+    Intent intent =
+        share
+            ? new Intent(Intent.ACTION_SEND)
+                .setType("video/mp4")
+                .putExtra(Intent.EXTRA_STREAM, resultUri())
+            : new Intent(Intent.ACTION_VIEW).setDataAndType(resultUri(), "video/mp4");
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    intent.setClipData(ClipData.newRawUri("Vídeo Sonora", resultUri()));
+    try {
+      startActivity(share ? Intent.createChooser(intent, "Partilhar MP4") : intent);
+    } catch (ActivityNotFoundException e) {
+      message("Não existe aplicação para abrir ou partilhar este vídeo. Usa Guardar MP4.");
     }
   }
 
@@ -1096,15 +1297,14 @@ public class MainActivity extends Activity {
     }
     if (request == 13 || request == 14) {
       try (InputStream in = getContentResolver().openInputStream(uri)) {
-        String text = ProjectStore.read(in);
         if (request == 13) {
-          Project next = Project.read(text);
+          Project next = Project.read(ProjectStore.read(in));
           store.save(project, false);
           project = next;
           selected = null;
           position = 0;
         } else {
-          ArrayList<Project.Caption> captions = Subtitles.parse(text);
+          ArrayList<Project.Caption> captions = Subtitles.read(in);
           project.captions.addAll(captions);
         }
         changed();
@@ -1172,7 +1372,7 @@ public class MainActivity extends Activity {
                     metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
                 c.sourceDurationMs = Long.parseLong(value);
                 if (c.sourceDurationMs > Project.MAX_MS)
-                  throw new IOException("Nesta versão, cada ficheiro deve ter até 5 minutos.");
+                  throw new IOException("Nesta versão, cada ficheiro deve ter até 10 minutos.");
                 c.lengthMs = Math.min(c.sourceDurationMs, Project.MAX_MS);
                 c.hasAudio =
                     "yes"
@@ -1192,8 +1392,8 @@ public class MainActivity extends Activity {
             c.validate();
             runOnUiThread(
                 () -> {
-                  if (project.clips.size() >= 32) {
-                    message("Máximo de 32 clips.");
+                  if (project.clips.size() >= 10000) {
+                    message("Projeto demasiado grande para esta versão.");
                     importing--;
                     setBusy(importing > 0);
                     return;
@@ -1201,6 +1401,7 @@ public class MainActivity extends Activity {
                   c.track =
                       c.type.equals("video") ? 0 : c.type.equals("image") ? 1 : nextAudioTrack();
                   project.clips.add(c);
+                  if (project.autoImages) arrangeImages();
                   selected = c.id;
                   position = 0;
                   importing--;
@@ -1211,7 +1412,7 @@ public class MainActivity extends Activity {
                       retained
                           ? "Ficheiro importado. Arrasta o clip ou edita os tempos."
                           : "Importado; esta origem não garante acesso após reiniciar. Mantém o"
-                                + " ficheiro disponível.");
+                              + " ficheiro disponível.");
                 });
           } catch (Exception e) {
             runOnUiThread(
@@ -1299,9 +1500,9 @@ public class MainActivity extends Activity {
                             message(
                                 timed.isEmpty()
                                     ? "Rascunho de transcrição criado. O motor não forneceu tempos;"
-                                          + " corrige e divide as frases manualmente."
+                                        + " corrige e divide as frases manualmente."
                                     : "Transcrição com tempos fornecidos pelo motor. Revê palavras"
-                                          + " e sincronização antes de exportar.");
+                                        + " e sincronização antes de exportar.");
                           }
 
                           public void failure(String error) {
@@ -1337,7 +1538,7 @@ public class MainActivity extends Activity {
 
   @Override
   protected void onDestroy() {
-    if (exporter != null) exporter.cancelled = true;
+    handler.removeCallbacks(exportTick);
     if (transcriber != null) transcriber.close();
     preview.close();
     worker.shutdown();

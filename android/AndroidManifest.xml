@@ -1,7 +1,12 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="pt.sonora.editor" android:versionCode="20" android:versionName="0.2-experimental">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="pt.sonora.editor" android:versionCode="40" android:versionName="0.4-experimental">
 <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/>
 <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 <queries><intent><action android:name="android.speech.RecognitionService"/></intent></queries>
-<application android:label="Sonora Lab" android:theme="@android:style/Theme.Material.NoActionBar" android:icon="@drawable/icon" android:allowBackup="false" android:supportsRtl="true">
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/><uses-permission android:name="android.permission.WAKE_LOCK"/><uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/><uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING"/><uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+<application android:label="Sonora Lab" android:theme="@style/AppTheme" android:icon="@drawable/icon" android:allowBackup="false" android:supportsRtl="true">
 <activity android:name="pt.sonora.app.MainActivity" android:exported="true" android:screenOrientation="portrait"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+<activity android:name="pt.sonora.offline.MainActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden|uiMode" android:windowSoftInputMode="adjustResize"/>
+<service android:name="pt.sonora.offline.ExportService" android:exported="false" android:foregroundServiceType="dataSync|mediaProcessing"/>
+<service android:name="pt.sonora.app.EditorExportService" android:exported="false" android:foregroundServiceType="dataSync|mediaProcessing"/>
+<provider android:name="pt.sonora.offline.VideoProvider" android:authorities="pt.sonora.editor.legacy.videos" android:exported="false" android:grantUriPermissions="true"/>
 </application></manifest>

@@ -86,12 +86,19 @@ final class EditorExporter {
             || (clip.type.equals("video") && (!clip.originalAudio || !clip.hasAudio))) continue;
         progress.update("A ler áudio: " + clip.name);
         File pcm = new File(dir, "source-" + (index++) + ".pcm");
-        Converter decoder = new Converter(context);
-        decoder.decode(Uri.parse(clip.uri), pcm);
+        pt.sonora.offline.LegacyBridge.Decoded decoder =
+            pt.sonora.offline.LegacyBridge.decode(
+                context,
+                Uri.parse(clip.uri),
+                pcm,
+                text -> {
+                  check();
+                  progress.update(text);
+                });
         check();
         if (decoder.channels > 2)
           throw new IOException("Áudio com mais de dois canais não é suportado nesta versão.");
-        tracks.add(new PcmTrack(clip, pcm, decoder.sampleRate, decoder.channels));
+        tracks.add(new PcmTrack(clip, pcm, decoder.rate, decoder.channels));
       }
       long frames = p.durationMs() * 48L;
       try (OutputStream out = new BufferedOutputStream(new FileOutputStream(output))) {
@@ -250,24 +257,23 @@ final class EditorExporter {
 
   static Spectrum.Features features(RandomAccessFile pcm, long ms, float ignoredPrevious)
       throws IOException {
-    float previous = ms >= 40 ? Spectrum.analyse(samples(pcm, ms - 40), 12000, 0).bass : 0;
-    return Spectrum.analyse(samples(pcm, ms), 12000, previous);
+    float previous = ms >= 40 ? Spectrum.analyse(samples(pcm, ms - 40), 48000, 0).bass : 0;
+    return Spectrum.analyse(samples(pcm, ms), 48000, previous);
   }
 
   static short[] samples(RandomAccessFile pcm, long ms) throws IOException {
-    pcm.seek(ms * 48 * 4);
-    byte[] data = new byte[512 * 4 * 4];
-    int n = pcm.read(data);
-    short[] mono = new short[512];
-    for (int i = 0; i < 512; i++) {
-      int at = i * 16;
-      if (at + 15 >= n) break;
-      int sum = 0;
-      for (int k = 0; k < 8; k++) {
-        int p = at + k * 2;
-        sum += (short) ((data[p] & 255) | (data[p + 1] << 8));
-      }
-      mono[i] = (short) (sum / 8);
+    long offset = Math.max(0, ms * 48 - 1024) * 4;
+    pcm.seek(offset);
+    byte[] data = new byte[2048 * 4];
+    int n = 0, r;
+    while (n < data.length && (r = pcm.read(data, n, data.length - n)) > 0) n += r;
+    short[] mono = new short[2048];
+    for (int i = 0; i < 2048; i++) {
+      int at = i * 4;
+      if (at + 3 >= n) break;
+      int left = (short) ((data[at] & 255) | (data[at + 1] << 8)),
+          right = (short) ((data[at + 2] & 255) | (data[at + 3] << 8));
+      mono[i] = (short) ((left + right) / 2);
     }
     return mono;
   }

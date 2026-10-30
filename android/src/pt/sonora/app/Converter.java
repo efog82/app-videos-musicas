@@ -60,8 +60,8 @@ class Converter {
       ex.selectTrack(track);
       MediaFormat f = ex.getTrackFormat(track);
       if (f.containsKey(MediaFormat.KEY_DURATION)
-          && f.getLong(MediaFormat.KEY_DURATION) > 300000000L)
-        throw new IOException("a música deve ter até 5 minutos.");
+          && f.getLong(MediaFormat.KEY_DURATION) > 600000000L)
+        throw new IOException("a música deve ter até 10 minutos.");
       decoder = MediaCodec.createDecoderByType(f.getString(MediaFormat.KEY_MIME));
       decoder.configure(f, null, null, 0);
       decoder.start();
@@ -106,8 +106,8 @@ class Converter {
               b.get(bytes);
               out.write(bytes);
               pcmBytes += bytes.length;
-              if (pcmBytes > sampleRate * channels * 2L * 300)
-                throw new IOException("a música deve ter até 5 minutos.");
+              if (pcmBytes > sampleRate * channels * 2L * 600)
+                throw new IOException("a música deve ter até 10 minutos.");
             }
             outputEnd = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
             decoder.releaseOutputBuffer(i, false);

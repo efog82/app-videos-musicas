@@ -243,7 +243,7 @@ public class MainActivity extends Activity {
         try{startForegroundService(intent);}catch(Exception e){starting=false;status.setText("Não foi possível iniciar: "+e.getMessage());setEnabled(true);}
     }
     void updateOutput(){boolean ready=!outputPath.isEmpty()&&new File(outputPath).isFile();open.setVisibility(ready?View.VISIBLE:View.GONE);save.setVisibility(ready?View.VISIBLE:View.GONE);share.setVisibility(ready?View.VISIBLE:View.GONE);}
-    Uri videoUri(){return Uri.parse("content://pt.sonora.offline.videos/"+new File(outputPath).getName());}
+    Uri videoUri(){return Uri.parse("content://"+getPackageName()+(getPackageName().equals("pt.sonora.editor")?".legacy.videos/":".videos/")+new File(outputPath).getName());}
     void openVideo(){Intent i=new Intent(Intent.ACTION_VIEW).setDataAndType(videoUri(),"video/mp4").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);try{startActivity(i);}catch(Exception e){status.setText("Não existe um leitor de vídeo instalado. Guarda o MP4 para o abrir noutra aplicação.");}}
     void shareVideo(){Intent i=new Intent(Intent.ACTION_SEND).setType("video/mp4").putExtra(Intent.EXTRA_STREAM,videoUri()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);i.setClipData(ClipData.newRawUri("Vídeo Sonora",videoUri()));try{startActivity(Intent.createChooser(i,"Partilhar MP4"));}catch(Exception e){status.setText("Não existe uma aplicação disponível para partilhar.");}}
     void saveVideo(){Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("video/mp4").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE,new File(outputPath).getName());try{startActivityForResult(i,SAVE);}catch(Exception e){status.setText("Não existe um seletor de destino instalado.");}}

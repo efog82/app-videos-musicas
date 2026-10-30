@@ -46,6 +46,20 @@ final class PreviewView extends View {
     setContentDescription("Pré-visualização do projeto");
   }
 
+  void updateAnnotations(Project p) {
+    try {
+      Project snapshot = p.copy();
+      project = snapshot;
+      worker.execute(
+          () -> {
+            if (scene != null) scene.project = snapshot;
+          });
+      render();
+    } catch (Exception e) {
+      if (listener != null) listener.error(e.getMessage());
+    }
+  }
+
   void setProject(Project p) {
     pause();
     try {
@@ -166,7 +180,7 @@ final class PreviewView extends View {
     if (rendering || closed || getWidth() < 1 || getHeight() < 1) return;
     rendering = true;
     long ms = position;
-    float aspect = project.vertical ? 9f / 16 : 16f / 9;
+    float aspect = project.square ? 1 : project.vertical ? 9f / 16 : 16f / 9;
     int width = Math.max(2, Math.min(640, Math.min(getWidth(), (int) (getHeight() * aspect)))),
         height = Math.max(2, (int) (width / aspect));
     worker.execute(

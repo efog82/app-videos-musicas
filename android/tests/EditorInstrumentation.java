@@ -132,6 +132,21 @@ public class EditorInstrumentation extends Instrumentation {
         }
       }
       bitmap.recycle();
+      for (int style = 0; style < 8; style++) {
+        p.effect = "legacy-" + style;
+        p.copy();
+        try (SceneRenderer scene = new SceneRenderer(target, p)) {
+          Bitmap art = Bitmap.createBitmap(320, 180, Bitmap.Config.ARGB_8888);
+          scene.draw(new Canvas(art), 320, 180, 500, f);
+          p.enhancedEffects = false;
+          Bitmap light = Bitmap.createBitmap(320, 180, Bitmap.Config.ARGB_8888);
+          scene.draw(new Canvas(light), 320, 180, 500, f);
+          check(!art.sameAs(light), "preserved detailed/light style " + style);
+          art.recycle();
+          light.recycle();
+          p.enhancedEffects = true;
+        }
+      }
       p.effect = "bars";
       progress("4/6 Encode MP4 horizontal with original video, mixed audio and captions");
       p.vertical = false;
@@ -178,6 +193,9 @@ public class EditorInstrumentation extends Instrumentation {
               a.showTab(tab);
           });
       waitForIdleSync();
+      check(
+          ((MainActivity) activity).panel.getHeight() > 0,
+          "editing controls have visible space on small screen");
       check(true, "all five tabs render without crash");
       runOnMainSync(activity::finish);
       result.putString(

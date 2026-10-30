@@ -7,7 +7,7 @@ PLATFORM="$SDK/platforms/android-35/android.jar"
 if [[ ! -f "$PLATFORM" ]]; then PLATFORM="$SDK/platforms/android-35-ext14/android.jar"; fi
 if [[ ! -x "$TOOLS/aapt2" ]]; then TOOLS="$SDK/build-tools/35.0.0"; fi
 BUILD=".build"
-PHASE="${SONORA_PHASE:-5}"
+PHASE="${SONORA_PHASE:-$(cat phase.txt)}"
 case "$PHASE" in 1|2|3|4|5) ;; *) echo 'SONORA_PHASE must be 1..5' >&2; exit 1 ;; esac
 rm -rf "$BUILD/classes"
 mkdir -p "$BUILD/classes" "$BUILD/generated/pt/sonora/app" dist
@@ -16,12 +16,12 @@ python3 - "$PHASE" <<'PYBUILD'
 import sys
 from pathlib import Path
 phase=int(sys.argv[1])
-s=Path('AndroidManifest.xml').read_text().replace('android:versionCode="20"',f'android:versionCode="{20+phase}"').replace('android:versionName="0.2-experimental"',f'android:versionName="0.2-phase{phase}-experimental"')
+s=Path('AndroidManifest.xml').read_text().replace('android:versionCode="40"',f'android:versionCode="{40+phase}"').replace('android:versionName="0.4-experimental"',f'android:versionName="0.4-phase{phase}-experimental"')
 Path('.build/AndroidManifest.xml').write_text(s)
 PYBUILD
 "$TOOLS/aapt2" compile --dir res -o "$BUILD/resources.zip"
 "$TOOLS/aapt2" link -o "$BUILD/base.apk" -I "$PLATFORM" --manifest "$BUILD/AndroidManifest.xml" "$BUILD/resources.zip"
-java -jar /workspace/android-tools/ecj.jar -encoding UTF-8 -source 8 -target 8 -bootclasspath "$PLATFORM:$TOOLS/core-lambda-stubs.jar" -d "$BUILD/classes" src/pt/sonora/app/*.java "$BUILD/generated/pt/sonora/app/BuildStage.java"
+java -jar /workspace/android-tools/ecj.jar -encoding UTF-8 -source 8 -target 8 -bootclasspath "$PLATFORM:$TOOLS/core-lambda-stubs.jar" -d "$BUILD/classes" src/pt/sonora/app/*.java app/src/main/java/pt/sonora/offline/*.java "$BUILD/generated/pt/sonora/app/BuildStage.java"
 find "$BUILD/classes" -name '*.class' -print0 | xargs -0 "$TOOLS/d8" --min-api 26 --lib "$PLATFORM" --output "$BUILD"
 cp "$BUILD/base.apk" "$BUILD/unsigned.apk"
 (cd "$BUILD" && zip -q unsigned.apk classes.dex)
