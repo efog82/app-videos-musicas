@@ -60,7 +60,7 @@ public class ServiceInstrumentation extends Instrumentation {
             activity.finish();
           });
       deadline = SystemClock.elapsedRealtime() + 180000;
-      while (EditorExportService.output.isEmpty()
+      while ((EditorExportService.running || EditorExportService.output.isEmpty())
           && EditorExportService.error.isEmpty()
           && SystemClock.elapsedRealtime() < deadline) Thread.sleep(100);
       if (!EditorExportService.error.isEmpty()) throw new AssertionError(EditorExportService.error);
@@ -74,10 +74,18 @@ public class ServiceInstrumentation extends Instrumentation {
         if (in == null || in.read() < 0) throw new AssertionError("Provider cannot read MP4");
       }
       if (!source.exists()) throw new AssertionError("Original source was removed");
+      Activity legacy =
+          startActivitySync(
+              new Intent(context, pt.sonora.offline.MainActivity.class)
+                  .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+      waitForIdleSync();
+      if (legacy == null) throw new AssertionError("Compatibility Activity did not launch");
+      runOnMainSync(legacy::finish);
       result.putString(
           "stream",
           "PASS: preview mix prepared; export survived Activity closure; valid MP4 accessible"
-              + " through read-only provider; original preserved.\n");
+              + " through read-only provider; original preserved; Sonora 0.3 compatibility UI"
+              + " opens.\n");
       finish(Activity.RESULT_OK, result);
     } catch (Throwable error) {
       android.util.Log.e("SonoraServiceTest", "Failure", error);

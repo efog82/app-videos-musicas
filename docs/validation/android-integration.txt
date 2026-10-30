@@ -1,0 +1,46 @@
+INSTRUMENTATION_STATUS: stream=1/6 Project persistence and non-destructive reopen
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=2/6 Real audio decode, original/mute/mix/fade
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=3/6 Scene rendering: all visual effects and subtitles
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=4/6 Encode MP4 horizontal with original video, mixed audio and captions
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=A preparar áudio e mistura…
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=A ler áudio: source.mp4
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=A analisar áudio · 2%
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=A analisar áudio · 36%
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=A analisar áudio · 68%
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=A ler áudio: music.wav
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=A criar vídeo…
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=A criar vídeo… 0% (1280×720)
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=5/6 Encode vertical image/music using the legacy converter and preserve originals
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: stream=6/6 Hardware validation, cancellation and UI tabs
+
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_RESULT: assertions=39
+INSTRUMENTATION_RESULT: stream=PASS: 39 Android assertions; real MediaCodec/MediaMuxer exports validated.
+
+INSTRUMENTATION_CODE: -1

@@ -1,0 +1,3 @@
+INSTRUMENTATION_RESULT: stream=PASS: preview mix prepared; export survived Activity closure; valid MP4 accessible through read-only provider; original preserved; Sonora 0.3 compatibility UI opens.
+
+INSTRUMENTATION_CODE: -1

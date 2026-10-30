@@ -1,0 +1,15 @@
+Performing Streamed Install
+Success
+INSTRUMENTATION_RESULT: stream=FAIL: java.lang.AssertionError: Background service did not finish
+	at pt.sonora.app.ServiceInstrumentation.onStart(ServiceInstrumentation.java:68)
+	at android.app.Instrumentation$InstrumentationThread.run(Instrumentation.java:2205)
+
+INSTRUMENTATION_CODE: 0
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+AssertionError: INSTRUMENTATION_RESULT: stream=FAIL: java.lang.AssertionError: Background service did not finish
+	at pt.sonora.app.ServiceInstrumentation.onStart(ServiceInstrumentation.java:68)
+	at android.app.Instrumentation$InstrumentationThread.run(Instrumentation.java:2205)
+
+INSTRUMENTATION_CODE: 0
+
