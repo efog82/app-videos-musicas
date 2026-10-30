@@ -1,0 +1,17 @@
+{
+  "video": {
+    "codec_name": "h264",
+    "width": 1280,
+    "height": 720,
+    "duration": "1.000000",
+    "avg_frame_rate": "24/1",
+    "nb_frames": "24"
+  },
+  "audio": {
+    "codec_name": "aac",
+    "sample_rate": "48000",
+    "channels": 2,
+    "duration": "0.981333"
+  },
+  "av_duration_difference_seconds": 0.01866699999999999
+}
