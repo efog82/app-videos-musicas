@@ -63,6 +63,72 @@ final class ProjectActions {
     clip.fadeOutMs = test.fadeOutMs;
   }
 
+  /** Append visual media; music remains free to overlap the montage. */
+  static void appendVisual(Project project, Project.Clip clip) throws JSONException {
+    long end = 0;
+    for (Project.Clip existing : project.clips)
+      if (!existing.type.equals("audio")) end = Math.max(end, existing.endMs());
+    if (end + clip.lengthMs > Project.MAX_MS)
+      throw new JSONException(
+          "A sequência excede o limite de 10 minutos. Encurta os clips primeiro.");
+    clip.startMs = end;
+    clip.track = 0;
+    clip.validate();
+    project.autoImages = false;
+    project.clips.add(clip);
+  }
+
+  static void sequenceVisual(Project project) throws JSONException {
+    long total = 0;
+    for (Project.Clip clip : project.clips) if (!clip.type.equals("audio")) total += clip.lengthMs;
+    if (total > Project.MAX_MS)
+      throw new JSONException("A sequência excede 10 minutos. Encurta os clips primeiro.");
+    long position = 0;
+    for (Project.Clip clip : project.clips)
+      if (!clip.type.equals("audio")) {
+        clip.startMs = position;
+        clip.track = 0;
+        position += clip.lengthMs;
+      }
+    project.autoImages = false;
+  }
+
+  /** Replace only the project reference, retaining source URI and clip timing. */
+  static Project.Clip audioOnly(Project project, Project.Clip video) throws JSONException {
+    if (!video.type.equals("video") || !video.hasAudio)
+      throw new JSONException("Este vídeo não tem áudio para extrair.");
+    int index = project.clips.indexOf(video);
+    if (index < 0) throw new JSONException("O vídeo já não pertence ao projeto.");
+    Project.Clip audio = Project.Clip.read(video.json());
+    audio.type = "audio";
+    audio.name = "Áudio · " + video.name;
+    audio.originalAudio = true;
+    audio.track = 2;
+    audio.validate();
+    project.clips.set(index, audio);
+    project.autoImages = false;
+    return audio;
+  }
+
+  /** Non-overlapping clips share a lane; overlaps retain separate visible lanes. */
+  static int[] lanes(java.util.List<Project.Clip> clips) {
+    int[] result = new int[clips.size()];
+    ArrayList<Long> ends = new ArrayList<>();
+    ArrayList<Integer> tracks = new ArrayList<>();
+    for (int i = 0; i < clips.size(); i++) {
+      Project.Clip clip = clips.get(i);
+      int lane = 0;
+      while (lane < ends.size()
+          && (tracks.get(lane) != clip.track || ends.get(lane) > clip.startMs)) lane++;
+      if (lane == ends.size()) {
+        ends.add(clip.endMs());
+        tracks.add(clip.track);
+      } else ends.set(lane, clip.endMs());
+      result[i] = lane;
+    }
+    return result;
+  }
+
   static long estimatedBytes(Project project) {
     return (long) Math.ceil(project.durationMs() / 1000.0 * (project.bitrate + 128000) / 8 * 1.03);
   }

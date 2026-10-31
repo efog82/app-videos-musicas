@@ -25,6 +25,7 @@ final class TimelineView extends View {
   static final class Row {
     final Project.Clip clip;
     final boolean original;
+    int lane;
 
     Row(Project.Clip c, boolean audio) {
       clip = c;
@@ -38,6 +39,7 @@ final class TimelineView extends View {
   final TextPaint paint = new TextPaint(3);
   final ArrayList<Project.Clip> elements = new ArrayList<>();
   final ArrayList<Row> rows = new ArrayList<>();
+  int laneCount;
   float scale = .05f, downX;
   long oldStart, oldIn, oldLength, downTime;
   String selected;
@@ -71,7 +73,7 @@ final class TimelineView extends View {
   }
 
   int rowTop(String id) {
-    return (int) (28 * dp + Math.max(0, rowOf(id)) * row());
+    return (int) (28 * dp + (rowOf(id) < 0 ? 0 : rows.get(rowOf(id)).lane) * row());
   }
 
   void update(Project p, String id, long ms) {
@@ -87,18 +89,35 @@ final class TimelineView extends View {
           return track == 0 ? Long.compare(a.startMs, b.startMs) : track;
         });
     rows.clear();
-    for (Project.Clip c : elements) {
-      rows.add(new Row(c, false));
-      if (c.type.equals("video") && c.hasAudio) rows.add(new Row(c, true));
+    int[] lanes = ProjectActions.lanes(elements);
+    laneCount = 0;
+    for (int i = 0; i < elements.size(); i++) {
+      Row entry = new Row(elements.get(i), false);
+      entry.lane = lanes[i];
+      rows.add(entry);
+      laneCount = Math.max(laneCount, entry.lane + 1);
+    }
+    // Linked original sound is shown only while attached. Detached/audio-only clips
+    // already have their own real audio row and must not get another virtual row.
+    int visualLanes = laneCount;
+    for (int i = 0; i < elements.size(); i++) {
+      Project.Clip c = elements.get(i);
+      if (c.type.equals("video") && c.hasAudio && c.originalAudio) {
+        Row audio = new Row(c, true);
+        audio.lane = visualLanes + lanes[i];
+        rows.add(audio);
+        laneCount = Math.max(laneCount, audio.lane + 1);
+      }
     }
     requestLayout();
     invalidate();
   }
 
   RectF bounds(Project.Clip c, int index) {
-    float left = labelWidth() + c.startMs * scale * dp, top = 28 * dp + index * row() + 3 * dp;
+    float left = labelWidth() + c.startMs * scale * dp,
+        top = 28 * dp + rows.get(index).lane * row() + 3 * dp;
     return new RectF(
-        left, top, Math.max(left + 72 * dp, labelWidth() + c.endMs() * scale * dp), top + 44 * dp);
+        left, top, Math.max(left + dp, labelWidth() + c.endMs() * scale * dp), top + 44 * dp);
   }
 
   @Override
@@ -115,8 +134,7 @@ final class TimelineView extends View {
             (28 * dp
                 + row()
                     * Math.max(
-                        1,
-                        rows.size() + (project != null && !project.captions.isEmpty() ? 1 : 0))));
+                        1, laneCount + (project != null && !project.captions.isEmpty() ? 1 : 0))));
   }
 
   @Override
@@ -221,7 +239,7 @@ final class TimelineView extends View {
           box.top + 25 * dp,
           paint);
     }
-    float captionY = 28 * dp + rows.size() * row();
+    float captionY = 28 * dp + laneCount * row();
     if (!project.captions.isEmpty()) {
       paint.setColor(UiTheme.MUTED);
       paint.setTextSize(9 * dp);
@@ -264,10 +282,17 @@ final class TimelineView extends View {
       dragCaption = null;
       moved = false;
       int index = (int) ((event.getY() - 28 * dp) / row());
-      if (event.getY() >= 28 * dp && index >= 0 && index < rows.size()) {
-        Row entry = rows.get(index);
+      int hit = -1;
+      for (int i = 0; i < rows.size(); i++)
+        if (rows.get(i).lane == index
+            && bounds(rows.get(i).clip, i).contains(event.getX(), event.getY())) {
+          hit = i;
+          break;
+        }
+      if (event.getY() >= 28 * dp && hit >= 0) {
+        Row entry = rows.get(hit);
         Project.Clip clip = entry.clip;
-        RectF box = bounds(clip, index);
+        RectF box = bounds(clip, hit);
         if (box.contains(event.getX(), event.getY()) || event.getX() < labelWidth()) {
           dragging = clip;
           oldStart = clip.startMs;
@@ -281,7 +306,7 @@ final class TimelineView extends View {
           if (entry.original) listener.selectOriginal(clip);
           else listener.select(clip);
         }
-      } else if (index == rows.size())
+      } else if (index == laneCount)
         for (Project.Caption caption : project.captions)
           if (time >= caption.startMs && time < caption.endMs) {
             dragCaption = caption;

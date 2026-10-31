@@ -74,6 +74,7 @@ final class PreviewView extends View {
         () -> {
           if (scene != null) scene.close();
           scene = new SceneRenderer(getContext(), snapshot);
+          scene.realtimePreview = true;
         });
     render();
   }
@@ -191,7 +192,10 @@ final class PreviewView extends View {
         () -> {
           Bitmap next = null;
           try {
-            if (scene == null) scene = new SceneRenderer(getContext(), project);
+            if (scene == null) {
+              scene = new SceneRenderer(getContext(), project);
+              scene.realtimePreview = true;
+            }
             next = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             if (analysis != null && analysis.isFile())
               try (RandomAccessFile pcm = new RandomAccessFile(analysis, "r")) {

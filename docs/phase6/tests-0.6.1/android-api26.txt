@@ -1,0 +1,7 @@
+Performing Streamed Install
+Success
+Performing Streamed Install
+Success
+INSTRUMENTATION_RESULT: stream=PASS: 14 Android renderer/timeline/codec checks; decoding including open/seek took 7721 ms (emulator, not phone performance).
+
+INSTRUMENTATION_CODE: -1

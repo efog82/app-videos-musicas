@@ -74,7 +74,7 @@ final class ContextTools {
                 c.changed();
               }),
           action("audio", "Separar", () -> c.separate(clip)),
-          action("export", "Extrair", () -> c.extract(clip)),
+          action("export", "Extrair", () -> c.extractChoice(clip)),
           action(
               "delete",
               "Eliminar",
@@ -98,7 +98,7 @@ final class ContextTools {
                 clip.muted = !clip.muted;
                 c.changed();
               }),
-          action("export", "Extrair", () -> c.extract(clip)),
+          action("export", "Extrair", () -> c.extractChoice(clip)),
           action("effect", "Efeitos", () -> EffectsPanel.show(c)),
           action("copy", "Duplicar", () -> duplicate(clip)),
           action("delete", "Eliminar", () -> c.confirmRemove(clip)),

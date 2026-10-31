@@ -20,6 +20,45 @@ public final class CoreTests {
   }
 
   public static void main(String[] args) throws Exception {
+    Project montage = new Project();
+    Project.Clip first = clip();
+    first.type = "image";
+    first.lengthMs = 5000;
+    first.sourceDurationMs = Project.MAX_MS;
+    Project.Clip second = Project.Clip.read(first.json());
+    second.id = UUID.randomUUID().toString();
+    ProjectActions.appendVisual(montage, first);
+    ProjectActions.appendVisual(montage, second);
+    check(
+        first.startMs == 0 && second.startMs == 5000 && montage.durationMs() == 10000,
+        "images append in sequence");
+    int[] lanes = ProjectActions.lanes(montage.clips);
+    check(lanes[0] == lanes[1], "sequential images share timeline lane");
+    second.startMs = 2500;
+    lanes = ProjectActions.lanes(montage.clips);
+    check(lanes[0] != lanes[1], "overlaps remain visible on independent lanes");
+    Project.Clip video = clip();
+    video.type = "video";
+    video.hasAudio = true;
+    video.startMs = 1000;
+    video.inMs = 500;
+    video.lengthMs = 3000;
+    montage.clips.clear();
+    montage.clips.add(video);
+    Project.Clip extracted = ProjectActions.audioOnly(montage, video);
+    check(
+        montage.clips.size() == 1 && extracted.type.equals("audio"),
+        "audio-only replaces video reference without duplicate tracks");
+    check(
+        extracted.uri.equals(video.uri)
+            && extracted.startMs == 1000
+            && extracted.inMs == 500
+            && extracted.lengthMs == 3000,
+        "extracted audio preserves URI and trims");
+    check(video.type.equals("video") && video.originalAudio, "original source reference unchanged");
+    check(
+        Project.read(montage.json().toString()).clips.get(0).type.equals("audio"),
+        "audio-only survives reopening");
     Project p = new Project();
     Project.Clip c = clip();
     c.startMs = 1000;

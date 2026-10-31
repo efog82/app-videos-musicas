@@ -873,6 +873,39 @@ final class EditorController extends ContextWrapper {
     }
   }
 
+  AlertDialog extractChoice(Project.Clip clip) {
+    return new AlertDialog.Builder(this)
+        .setTitle("Extrair áudio")
+        .setItems(
+            new String[] {
+              "Ficar só com o áudio na timeline",
+              "Separar áudio e manter o vídeo",
+              "Guardar áudio como M4A"
+            },
+            (dialog, choice) -> {
+              if (choice == 1) {
+                separate(clip);
+                return;
+              }
+              if (choice == 2) {
+                extract(clip);
+                return;
+              }
+              try {
+                Project.Clip audio = ProjectActions.audioOnly(project, clip);
+                originalSelected = false;
+                selected = audio.id;
+                changed();
+                focusElement(audio);
+                message("Apenas uma faixa de áudio. O ficheiro de vídeo original foi preservado.");
+              } catch (Exception error) {
+                message(error.getMessage());
+              }
+            })
+        .setNegativeButton("Cancelar", null)
+        .show();
+  }
+
   void extract(Project.Clip c) {
     if (!c.hasAudio) {
       message("O vídeo não tem áudio.");
@@ -910,7 +943,7 @@ final class EditorController extends ContextWrapper {
   void onActivityResult(int request, int response, Intent data) {
 
     if (response != Activity.RESULT_OK || data == null) return;
-    if (request == 10 || request == 11 || request == 12) {
+    if (request == 10 || request == 11 || request == 12 || request == 16) {
       ArrayList<Uri> uris = new ArrayList<>();
       if (data.getClipData() != null)
         for (int i = 0; i < data.getClipData().getItemCount(); i++)
@@ -1014,7 +1047,7 @@ final class EditorController extends ContextWrapper {
     }
     final boolean retained = persistent;
     importing++;
-    final long imageDuration = project.durationMs();
+    final long imageDuration = 5000;
     setBusy(true);
     worker.execute(
         () -> {
@@ -1022,7 +1055,7 @@ final class EditorController extends ContextWrapper {
             Project.Clip c = new Project.Clip();
             c.uri = uri.toString();
             c.name = displayName(uri);
-            c.type = request == 10 ? "audio" : request == 11 ? "video" : "image";
+            c.type = (request == 10 || request == 16) ? "audio" : request == 11 ? "video" : "image";
             if (c.type.equals("image")) {
               android.graphics.BitmapFactory.Options options =
                   new android.graphics.BitmapFactory.Options();
@@ -1048,6 +1081,9 @@ final class EditorController extends ContextWrapper {
                         .equals(
                             metadata.extractMetadata(
                                 MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO));
+                if (request == 16 && !c.hasAudio)
+                  throw new IOException("Este vídeo não tem áudio para extrair.");
+                if (request == 16) c.name = "Áudio · " + c.name;
                 if (c.type.equals("video")
                     && !"yes"
                         .equals(
@@ -1069,10 +1105,19 @@ final class EditorController extends ContextWrapper {
                   }
                   c.track =
                       c.type.equals("video") ? 0 : c.type.equals("image") ? 1 : nextAudioTrack();
-                  project.clips.add(c);
-                  if (project.autoImages) arrangeImages();
+                  try {
+                    if (c.type.equals("audio")) project.clips.add(c);
+                    else ProjectActions.appendVisual(project, c);
+                  } catch (Exception error) {
+                    importing--;
+                    setBusy(importing > 0);
+                    message(error.getMessage());
+                    return;
+                  }
                   selected = c.id;
-                  position = 0;
+                  originalSelected = false;
+                  selectedCaption = null;
+                  position = c.startMs;
                   importing--;
                   setBusy(importing > 0);
                   changed();

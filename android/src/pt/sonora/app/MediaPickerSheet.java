@@ -29,6 +29,32 @@ final class MediaPickerSheet {
           -1,
           56);
     }
+    if (c.project.clips.size() > 1)
+      PanelControls.button(
+          c,
+          body,
+          "Organizar imagens e vídeos em sequência",
+          () -> {
+            new android.app.AlertDialog.Builder(c)
+                .setTitle("Organizar sequência?")
+                .setMessage(
+                    "Coloca as imagens e vídeos um após outro, pela ordem de importação. Mantém as"
+                        + " durações e os ficheiros originais; substitui as posições atuais dos"
+                        + " clips visuais.")
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton(
+                    "Organizar",
+                    (prompt, which) -> {
+                      try {
+                        ProjectActions.sequenceVisual(c.project);
+                        c.changed();
+                        dialog[0].dismiss();
+                      } catch (Exception error) {
+                        c.message(error.getMessage());
+                      }
+                    })
+                .show();
+          });
     UiTheme.item(
         body,
         UiTheme.text(

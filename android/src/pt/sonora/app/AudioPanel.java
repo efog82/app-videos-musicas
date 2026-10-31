@@ -6,6 +6,7 @@ final class AudioPanel {
   static void show(EditorController c) {
     LinearLayout body = UiTheme.column(c);
     PanelControls.button(c, body, "+ Importar música", () -> c.pick(10, "audio/*", true));
+    PanelControls.button(c, body, "+ Só o áudio de um vídeo", () -> c.pick(16, "video/*", true));
     for (Project.Clip clip : c.project.clips)
       if (clip.type.equals("audio") || clip.type.equals("video") && clip.hasAudio)
         PanelControls.button(
@@ -57,7 +58,7 @@ final class AudioPanel {
             c.changed();
           });
       PanelControls.button(c, body, "Separar para faixa independente", () -> c.separate(clip));
-      PanelControls.button(c, body, "Extrair M4A", () -> c.extract(clip));
+      PanelControls.button(c, body, "Extrair áudio", () -> c.extractChoice(clip));
     }
     PanelControls.button(c, body, "Fade de entrada / saída", () -> fades(c, clip));
     PanelControls.note(c, body, "Ganho acima de 1 pode saturar ao misturar várias faixas.");

@@ -15,6 +15,9 @@ final class SceneRenderer implements AutoCloseable {
   final Map<String, MediaMetadataRetriever> videos = new HashMap<>();
   final Paint paint = new Paint(3);
   Project project;
+  boolean realtimePreview;
+  final Map<String, PreviewVideoDecoder> previewVideos = new HashMap<>();
+  final Set<String> previewFallback = new HashSet<>();
   final pt.sonora.offline.LegacyBridge legacy = new pt.sonora.offline.LegacyBridge();
 
   SceneRenderer(Context c, Project p) {
@@ -236,6 +239,26 @@ final class SceneRenderer implements AutoCloseable {
       }
       return b;
     }
+    if (realtimePreview && !previewFallback.contains(clip.id)) {
+      try {
+        PreviewVideoDecoder decoder = previewVideos.get(clip.id);
+        if (decoder == null) {
+          if (previewVideos.size() >= 2) {
+            String old = previewVideos.keySet().iterator().next();
+            previewVideos.remove(old).close();
+          }
+          decoder = new PreviewVideoDecoder(context, clip.uri);
+          previewVideos.put(clip.id, decoder);
+        }
+        return decoder.at(clip.sourceTime(ms) * 1000, w, h);
+      } catch (Exception unsupported) {
+        PreviewVideoDecoder decoder = previewVideos.remove(clip.id);
+        if (decoder != null) decoder.close();
+        previewFallback.add(clip.id);
+        android.util.Log.w(
+            "SonoraPreview", "Sequential decoding unavailable; using frame retrieval", unsupported);
+      }
+    }
     MediaMetadataRetriever r = videos.get(clip.id);
     if (r == null) {
       r = new MediaMetadataRetriever();
@@ -288,6 +311,9 @@ final class SceneRenderer implements AutoCloseable {
 
   @Override
   public void close() {
+    for (PreviewVideoDecoder decoder : previewVideos.values()) decoder.close();
+    previewVideos.clear();
+    previewFallback.clear();
     for (Bitmap b : images.values()) b.recycle();
     images.clear();
     for (MediaMetadataRetriever r : videos.values())
