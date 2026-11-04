@@ -1,3 +1,5 @@
+> **Nota (v0.3.4):** este documento é histórico — a matriz abaixo descreve a base v0.1/v0.2 e várias afirmações estão desatualizadas (por exemplo, já há descoberta mDNS, TLS com pinning e testes reais com credenciais). Para o estado atual, consulte [o relatório v0.3.4](RELATORIO-v0.3.4.md) e o código.
+>
 > Atualização v0.2.0: consulte [a auditoria](AUDITORIA-v0.2.md), [a configuração](CONFIGURACAO-v0.2.md) e [o relatório atual](RELATORIO-v0.2.md). A matriz abaixo descreve a base v0.1.0; ligações diretas, descoberta LAN, TLS automático e agente textual foram acrescentados, sem remover os restantes componentes.
 
 # Funcionalidades, requisitos e limites
