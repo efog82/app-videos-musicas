@@ -25,6 +25,10 @@ class Jobs:
 
     def submit(self, kind, fn):
         with self.lock:
+            # Drop futures of finished jobs so the map does not grow without bound.
+            # Done here (not in the worker) so callers can still reach a just-finished
+            # future via jobs.futures[id] until the next submission.
+            self.futures = {k:f for k,f in self.futures.items() if not f.done()}
             active = [x for x in self.store.list('job') if x['status'] in ('queued','running')]
             if len(active) >= 20:
                 raise ValueError('Fila cheia (20 tarefas); aguarde a conclusão')
