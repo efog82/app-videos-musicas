@@ -1,3 +1,5 @@
+> **Nota (v0.3.4):** este documento é histórico — descreve os testes da era v0.1/v0.2 e os números já não refletem a suite atual. Para o estado atual, consulte [o relatório v0.3.4](RELATORIO-v0.3.4.md) e o código/testes em `server/tests/` e `android/`.
+
 # Relatório de testes
 
 ## Servidor — execução local em 26-10-2026
