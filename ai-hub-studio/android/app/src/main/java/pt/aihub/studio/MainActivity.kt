@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.outlined.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -64,7 +65,7 @@ class MainActivity:ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun StudioApp(vm:StudioModel) {
     val context=LocalContext.current;val scope=rememberCoroutineScope();val drawer=rememberDrawerState(DrawerValue.Closed)
-    var draft by remember {mutableStateOf("")};var attachments by remember {mutableStateOf(emptyList<JSONObject>())}
+    var draft by rememberSaveable {mutableStateOf("")};var attachments by remember {mutableStateOf(emptyList<JSONObject>())}
     var historyQuery by remember {mutableStateOf("")};var expanded by remember {mutableStateOf<JSONObject?>(null)}
     var generation by remember {mutableStateOf<GenerationRequest?>(null)}
     var pendingExport by remember {mutableStateOf<JSONObject?>(null)}
