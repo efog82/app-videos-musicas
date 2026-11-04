@@ -12,6 +12,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
+from .version import __version__
 
 
 def lan_addresses():
@@ -68,7 +69,7 @@ class Announcement:
         self.zc=Zeroconf(interfaces=[host],ip_version=IPVersion.V4Only)
         self.info=ServiceInfo('_aihub._tcp.local.',f'AI Hub {socket.gethostname()}._aihub._tcp.local.',
                               addresses=[socket.inet_aton(host)],port=port,
-                              properties={'tls':'1','fp':fingerprint,'version':'0.2.0'})
+                              properties={'tls':'1','fp':fingerprint,'version':__version__})
         self.zc.register_service(self.info,allow_name_change=True)
     def close(self):
         self.zc.unregister_service(self.info);self.zc.close()
