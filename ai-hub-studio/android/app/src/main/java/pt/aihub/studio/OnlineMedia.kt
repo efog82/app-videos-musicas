@@ -63,6 +63,7 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
     suspend fun generate(p:MediaProvider,prompt:String,width:Int,height:Int,seed:Long,duration:Double,model:String,reference:File?,cloudflareSteps:Int=8,progress:(String)->Unit):File {
         require(prompt.isNotBlank()){ "Escreva uma descrição" }
         require(reference==null||p.reference){"Este fornecedor não aceita imagens de referência; escolha um compatível"}
+        require(p.id!="hf-flux-kontext"||reference!=null){"O FLUX.1 Kontext edita uma imagem existente: escolha uma imagem de referência para editar"}
         if(p.kind=="video")p.video.validate(duration,reference!=null)
         val now=System.currentTimeMillis()
         val previous=quota.get(p.id,model)
@@ -117,18 +118,26 @@ class OnlineMedia(private val context:Context,private val vault:Vault) {
                     progress("A validar API Gradio e capacidades atuais…")
                     val api=info(p,reference!=null)
                     val values=mutableMapOf<String,Any?>("prompt" to prompt,"negative_prompt" to "blurry, distorted, low quality","seed" to seed,"seed_ui" to seed,"randomize_seed" to false,"width" to width,"height" to height,"num_inference_steps" to if(p.id=="hf-zimage")9 else 4,
-                        "input_image_filepath" to null,"input_video_filepath" to null,"height_ui" to height,"width_ui" to width,"mode" to if(reference==null)"text-to-video" else "image-to-video","duration_ui" to duration,"ui_frames_to_use" to 9,"ui_guidance_scale" to 3.0,"improve_texture_flag" to false)
+                        "input_image_filepath" to null,"input_video_filepath" to null,"height_ui" to height,"width_ui" to width,"mode" to if(reference==null)"text-to-video" else "image-to-video","duration" to duration,"duration_ui" to duration,"ui_frames_to_use" to 9,"ui_guidance_scale" to 3.0,"improve_texture_flag" to false)
                     if(p.id=="hf-wan22-i2v") {
                         values["input_image"]=null;values["steps"]=4;values["duration_seconds"]=duration
                         values["guidance_scale"]=1.0;values["guidance_scale_2"]=1.0
                     }
+                    if(p.id=="hf-qwen-image") {
+                        values["num_inference_steps"]=20;values["guidance_scale"]=4.0;values["prompt_enhance"]=false
+                        values["aspect_ratio"]=listOf("1:1","16:9","9:16","4:3","3:4","3:2","2:3").minByOrNull{kotlin.math.abs(kotlin.math.ln(width.toDouble()/height)-kotlin.math.ln(it.substringBefore(":").toDouble()/it.substringAfter(":").toDouble()))}
+                    }
+                    if(p.id=="hf-flux-krea"){values["num_inference_steps"]=28;values["guidance_scale"]=4.5}
+                    if(p.id=="hf-sd35"){values["num_inference_steps"]=30;values["guidance_scale"]=4.5}
+                    if(p.id=="hf-flux-kontext"){values["steps"]=28;values["guidance_scale"]=2.5}
+                    if(p.id=="hf-cogvideox-5b"){values["seed_value"]=seed;values["image_input"]=null;values["video_input"]=null}
                     if(reference!=null) {
                         progress("A enviar a referência para o Space selecionado…")
                         val upload=ReferenceUpload(reference)
                         val paths=http.call(p.base+api.prefix+"/upload","POST",auth(p),contentType="multipart/form-data; boundary=${upload.boundary}",bodyWriter=upload::write,bodyLength=upload.length){JSONArray(it.inputStream.bufferedReader().use{r->r.readText()})}
                         val uploaded=JSONObject().put("path",paths.getString(0)).put("orig_name",upload.name).put("meta",JSONObject().put("_type","gradio.FileData"))
                         values["input_image_filepath"]=uploaded
-                        if(p.id=="hf-wan22-i2v")values["input_image"]=uploaded
+                        values["input_image"]=uploaded;values["image_input"]=uploaded;values["image"]=uploaded
                     }
                     val data=JSONArray()
                     for(parameter in api.parameters) {
