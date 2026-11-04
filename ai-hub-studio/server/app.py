@@ -17,6 +17,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from .version import __version__
 from .storage import Store
 from .providers import PRESETS, Router, ProviderError, validate_url
 from .jobs import Jobs
@@ -71,7 +72,7 @@ def create_app(root=None, token=None, transport=None):
     store = Store(root)
     router = Router(store, transport)
     jobs = Jobs(store)
-    app = FastAPI(title='AI Hub Studio PC',version='0.2.0',docs_url=None,redoc_url=None,openapi_url=None)
+    app = FastAPI(title='AI Hub Studio PC',version=__version__,docs_url=None,redoc_url=None,openapi_url=None)
     app.state.store, app.state.router, app.state.jobs = store,router,jobs
     attempts = {}
 
@@ -108,7 +109,7 @@ def create_app(root=None, token=None, transport=None):
 
     @app.get('/health')
     def health():
-        return {'service':'AI Hub Studio','version':'0.2.0','pairing_required':True}
+        return {'service':'AI Hub Studio','version':__version__,'pairing_required':True}
 
     protected = [Depends(auth)]
 
@@ -245,7 +246,7 @@ def create_app(root=None, token=None, transport=None):
         for c in store.list('conversation',project=id):
             store.delete(c['id'])
         for record in store.list('file',project=id):
-            store.path(record['id']).unlink(); store.delete(record['id'])
+            store.path(record['id']).unlink(missing_ok=True); store.delete(record['id'])
         store.delete(id)
         return {'deleted':True}
 
@@ -283,7 +284,7 @@ def create_app(root=None, token=None, transport=None):
 
     @app.delete('/v1/files/{id}',dependencies=protected)
     def delete_file(id:str):
-        store.path(id).unlink(); store.delete(id)
+        store.path(id).unlink(missing_ok=True); store.delete(id)
         return {'deleted':True}
 
     @app.get('/v1/files/{id}/text',dependencies=protected)
@@ -294,7 +295,15 @@ def create_app(root=None, token=None, transport=None):
             reader = PdfReader(path)
             content = '\n'.join(p.extract_text() or '' for p in reader.pages[:100])
         elif path.suffix in ('.txt','.srt','.json'):
-            content = path.read_text(encoding='utf-8-sig')
+            # Stream in chunks up to the response limit instead of loading the whole file first.
+            parts=[]; total=0
+            with path.open('r',encoding='utf-8-sig') as f:
+                while total < 200000:
+                    chunk = f.read(min(65536,200000-total))
+                    if not chunk:
+                        break
+                    parts.append(chunk); total += len(chunk)
+            content = ''.join(parts)
         else:
             raise ValueError('Extração de texto disponível para PDF, TXT, JSON e SRT; PDFs digitalizados exigem OCR externo')
         return {'text':content[:200000], 'limit':200000}
