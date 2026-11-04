@@ -24,7 +24,7 @@ class StudioModel(app:Application):AndroidViewModel(app) {
     val mediaStatus=MediaStatusStore(db)
     private val mediaClient=OnlineMedia(app,vault);private val queue=Mutex();private val handler=Handler(Looper.getMainLooper())
     private val workers=mutableMapOf<String,Job>()
-    var dark by mutableStateOf(vault.get("theme_v3")!="light");private set
+    var dark by mutableStateOf(when(vault.get("theme_v3")){"light"->false;"dark"->true;else->(app.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK)==android.content.res.Configuration.UI_MODE_NIGHT_YES});private set
     var tab by mutableStateOf("Chat")
     var status by mutableStateOf("Escolha uma IA e autorize o envio em Fornecedores. Os pedidos gratuitos têm quotas.")
     var importingImage by mutableStateOf(false);private set
@@ -113,6 +113,7 @@ class StudioModel(app:Application):AndroidViewModel(app) {
     }
     fun stopChat(){chatWorker?.cancel()}
     fun saveProject(name:String,context:String){require(name.isNotBlank());db.save("project",JSONObject().put("name",name).put("context",context));refresh()}
+    fun deleteProject(id:String){db.list("asset").filter{it.optString("project")==id}.forEach{db.save("asset",JSONObject(it.toString()).put("project",""),it.getString("id"))};db.list("conversation").filter{it.optString("project")==id}.forEach{db.save("conversation",JSONObject(it.toString()).put("project",""),it.getString("id"))};db.delete(id);if(currentProject==id)currentProject="";refresh();status="Projeto apagado. As criações e conversas foram mantidas, sem projeto."}
     fun assignAsset(asset:JSONObject,project:String){db.save("asset",JSONObject(asset.toString()).put("project",project),asset.getString("id"));refresh()}
     private fun saveTask(task:JSONObject){db.save("generation",task,task.getString("id"));tasks=db.list("generation")}
     private fun updateTask(id:String,state:String,message:String){val t=tasks.firstOrNull{it.getString("id")==id}?:return;if(t.optString("state") in setOf("done","failed","cancelled","interrupted")&&state in setOf("queued","running"))return;saveTask(JSONObject(t.toString()).put("state",state).put("message",message))}
