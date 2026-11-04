@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
@@ -76,7 +77,7 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
     var imageReady by remember(asset.optString("path")){mutableStateOf(false)}
     Card(Modifier.fillMaxWidth().testTag("asset-card-${asset.optString("id")}"),shape=RoundedCornerShape(22.dp)){
         Box(Modifier.fillMaxWidth().height(240.dp).clickable(onClick=onOpen).testTag(if(image)"asset-image" else "asset-video").semantics{if(image)stateDescription=if(imageReady)"Imagem preparada" else "A carregar imagem"},contentAlignment=Alignment.Center){
-            if(image)AsyncImage(model=File(asset.getString("path")),contentDescription=if(asset.optString("source")=="gallery")"Imagem selecionada da galeria" else "Imagem gerada",modifier=Modifier.fillMaxSize(),onSuccess={imageReady=true})else VideoThumbnail(asset)
+            if(image)AsyncImage(model=File(asset.getString("path")),contentDescription=if(asset.optString("source")=="gallery")"Imagem selecionada da galeria" else "Imagem gerada",modifier=Modifier.fillMaxSize(),contentScale=ContentScale.Crop,placeholder=androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),error=androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),onSuccess={imageReady=true})else VideoThumbnail(asset)
             if(image)FilledTonalIconButton(onClick={confirmDelete=true},modifier=Modifier.align(Alignment.TopEnd).padding(8.dp).testTag("delete-asset-${asset.optString("id")}")){Icon(Icons.Outlined.DeleteOutline,"Eliminar imagem")}
             if(!image)FilledIconButton(onClick=onOpen){Icon(Icons.Outlined.PlayArrow,"Reproduzir vídeo")}
         }
@@ -98,8 +99,12 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
 }
 @Composable private fun VideoThumbnail(asset:JSONObject){
     var frame by remember(asset.optString("path")){mutableStateOf<android.graphics.Bitmap?>(null)}
-    LaunchedEffect(asset.optString("path")){frame=withContext(Dispatchers.IO){runCatching{val r=android.media.MediaMetadataRetriever();try{r.setDataSource(asset.getString("path"));r.getFrameAtTime(0)}finally{r.release()}}.getOrNull()}}
-    frame?.let{Image(bitmap=it.asImageBitmap(),contentDescription="Pré-visualização do vídeo gerado",modifier=Modifier.fillMaxSize().testTag("asset-video-thumbnail"))}?:CircularProgressIndicator(Modifier.size(24.dp))
+    var loaded by remember(asset.optString("path")){mutableStateOf(false)}
+    LaunchedEffect(asset.optString("path")){frame=withContext(Dispatchers.IO){runCatching{val r=android.media.MediaMetadataRetriever();try{r.setDataSource(asset.getString("path"));r.getFrameAtTime(0)}finally{r.release()}}.getOrNull()};loaded=true}
+    val currentFrame=frame
+    if(currentFrame!=null)Image(bitmap=currentFrame.asImageBitmap(),contentDescription="Pré-visualização do vídeo gerado",modifier=Modifier.fillMaxSize().testTag("asset-video-thumbnail"))
+    else if(!loaded)CircularProgressIndicator(Modifier.size(24.dp))
+    else Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),contentAlignment=Alignment.Center){Icon(Icons.Outlined.Movie,"Pré-visualização do vídeo indisponível",Modifier.size(48.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)}
 }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun MediaViewer(asset:JSONObject,onDismiss:()->Unit,onSave:()->Unit,onShare:()->Unit,onAnimate:()->Unit,onVariation:()->Unit,onDelete:(()->Unit)?=null){
@@ -108,7 +113,7 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
     var confirmDelete by remember(asset.optString("id")){mutableStateOf(false)}
     var scale by remember{mutableFloatStateOf(1f)};var x by remember{mutableFloatStateOf(0f)};var y by remember{mutableFloatStateOf(0f)}
     Dialog(onDismissRequest=onDismiss,properties=DialogProperties(usePlatformDefaultWidth=false)){
-        Surface(Modifier.fillMaxSize(),color=Color.Black){Column{
+        StudioTheme(dark=true){Surface(Modifier.fillMaxSize(),color=Color.Black){Column{
             TopAppBar(title={Text(if(asset.optString("kindMedia")=="video")"Vídeo" else "Imagem",maxLines=1,overflow=TextOverflow.Ellipsis,color=Color.White)},navigationIcon={IconButton(onClick=onDismiss){Icon(Icons.Outlined.Close,"Fechar pré-visualização",tint=Color.White)}},colors=TopAppBarDefaults.topAppBarColors(containerColor=Color.Black),actions={if(asset.optString("provider")=="cloudflare")IconButton(onClick={diagnostic=true}){Icon(Icons.Outlined.Info,"Diagnóstico desta imagem",tint=Color.White)};IconButton(onClick=onSave,modifier=Modifier.testTag("viewer-save")){Icon(Icons.Outlined.Download,"Guardar na galeria",tint=Color.White)};IconButton(onClick=onShare){Icon(Icons.Outlined.Share,"Partilhar ficheiro",tint=Color.White)};if(asset.optString("kindMedia")=="image"&&onDelete!=null)IconButton(onClick={confirmDelete=true},modifier=Modifier.testTag("viewer-delete")){Icon(Icons.Outlined.DeleteOutline,"Eliminar imagem",tint=Color.White)}})
             if(asset.optString("kindMedia")=="video")MediaPlayer(asset.getString("path"),Modifier.weight(1f).fillMaxWidth())
             else Box(Modifier.weight(1f).fillMaxWidth().pointerInput(Unit){detectTransformGestures{_,pan,zoom,_->scale=(scale*zoom).coerceIn(1f,8f);x=if(scale>1)x+pan.x else 0f;y=if(scale>1)y+pan.y else 0f}},contentAlignment=Alignment.Center){AsyncImage(model=File(asset.getString("path")),contentDescription="Imagem em ecrã completo com zoom",modifier=Modifier.fillMaxSize().graphicsLayer(scaleX=scale,scaleY=scale,translationX=x,translationY=y))}
@@ -119,7 +124,7 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
                 }
                 Button(onClick=onAnimate,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("viewer-animate")){Icon(Icons.Outlined.MotionPhotosOn,null);Text("Animar imagem",Modifier.padding(start=8.dp),maxLines=1)}
             }
-        }}
+        }}}
     }
     if(confirmDelete)AssetDeletionConfirmation(asset,onConfirm={confirmDelete=false;onDelete?.invoke()},onDismiss={confirmDelete=false})
 }
@@ -194,17 +199,18 @@ data class GenerationRequest(val kind:String,val prompt:String,val origin:String
 @Composable fun LabeledSwitch(label:String,value:Boolean,onChange:(Boolean)->Unit){Row(Modifier.fillMaxWidth().clickable{onChange(!value)},verticalAlignment=Alignment.CenterVertically){Text(label,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium);Switch(value,onCheckedChange=onChange)}}
 @Composable fun AssetProjectMenu(vm:StudioModel,asset:JSONObject){var open by remember{mutableStateOf(false)};Box{IconButton(onClick={open=true}){Icon(Icons.Outlined.FolderOpen,"Associar a projeto")};DropdownMenu(expanded=open,onDismissRequest={open=false}){DropdownMenuItem(text={Text("Sem projeto")},onClick={vm.assignAsset(asset,"");open=false});vm.projects.forEach{p->DropdownMenuItem(text={Text(p.getString("name"))},onClick={vm.assignAsset(asset,p.getString("id"));open=false})}}}}
 @Composable fun ProjectsScreen(vm:StudioModel,onAsset:(JSONObject)->Unit){
-    var name by remember{mutableStateOf("")};var context by remember{mutableStateOf("")};var selected by remember{mutableStateOf("")}
+    var name by remember{mutableStateOf("")};var context by remember{mutableStateOf("")};var selected by remember{mutableStateOf("")};var confirmDelete by remember{mutableStateOf<JSONObject?>(null)}
     LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.testTag("projects-screen")){
         item{Text("Os teus projetos criativos",style=MaterialTheme.typography.headlineSmall);Text("Contexto, conversas e resultados no mesmo lugar.",style=MaterialTheme.typography.bodyMedium)}
         item{OutlinedTextField(name,{name=it},label={Text("Nome do projeto")},modifier=Modifier.fillMaxWidth());OutlinedTextField(context,{context=it},label={Text("Contexto e personagens")},modifier=Modifier.fillMaxWidth(),minLines=2);Button(enabled=name.isNotBlank(),onClick={vm.saveProject(name,context);name="";context=""}){Text("Criar projeto")}}
-        items(vm.projects,key={it.getString("id")}){project->Card(Modifier.fillMaxWidth().clickable{selected=project.getString("id")}){Column(Modifier.padding(16.dp)){Text(project.getString("name"),style=MaterialTheme.typography.titleMedium);Text(project.optString("context"),maxLines=3,overflow=TextOverflow.Ellipsis);Row{TextButton(onClick={vm.currentProject=project.getString("id");vm.tab="Chat";vm.status="Contexto do projeto: ${project.getString("name")}"}){Text("Usar no Chat")};TextButton(onClick={selected=project.getString("id")}){Text("Ver criações")}}}}}
+        items(vm.projects,key={it.getString("id")}){project->Card(Modifier.fillMaxWidth().clickable{selected=project.getString("id")}){Column(Modifier.padding(16.dp)){Text(project.getString("name"),style=MaterialTheme.typography.titleMedium);Text(project.optString("context"),maxLines=3,overflow=TextOverflow.Ellipsis);Row{TextButton(onClick={vm.currentProject=project.getString("id");vm.tab="Chat";vm.status="Contexto do projeto: ${project.getString("name")}"}){Text("Usar no Chat")};TextButton(onClick={selected=project.getString("id")}){Text("Ver criações")};TextButton(onClick={confirmDelete=project},modifier=Modifier.testTag("delete-project-${project.getString("id")}")){Text("Apagar projeto")}}}}}
         if(selected.isNotBlank()){
             item{Text("Criações do projeto",style=MaterialTheme.typography.titleLarge)}
-            items(vm.assets.filter{it.optString("project")==selected}){asset->Card(Modifier.fillMaxWidth().clickable{onAsset(asset)}){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){if(asset.optString("kindMedia")=="image")AsyncImage(File(asset.getString("path")),"Imagem do projeto",Modifier.size(80.dp))else Icon(Icons.Outlined.Movie,null,Modifier.size(48.dp));Text(asset.optString("prompt"),Modifier.weight(1f).padding(start=12.dp),maxLines=3,overflow=TextOverflow.Ellipsis)}}}
+            items(vm.assets.filter{it.optString("project")==selected}){asset->Card(Modifier.fillMaxWidth().clickable{onAsset(asset)}){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){if(asset.optString("kindMedia")=="image")AsyncImage(File(asset.getString("path")),"Imagem do projeto",Modifier.size(80.dp),contentScale=ContentScale.Crop,placeholder=androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),error=androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant))else Icon(Icons.Outlined.Movie,null,Modifier.size(48.dp));Text(asset.optString("prompt"),Modifier.weight(1f).padding(start=12.dp),maxLines=3,overflow=TextOverflow.Ellipsis)}}}
             items(vm.conversations.filter{it.optString("project")==selected}){c->ListItem(headlineContent={Text(c.optString("title"))},leadingContent={Icon(Icons.Outlined.ChatBubbleOutline,null)},modifier=Modifier.clickable{vm.openConversation(c)})}
         }
     }
+    confirmDelete?.let{project->AlertDialog(onDismissRequest={confirmDelete=null},title={Text("Apagar projeto?")},text={Text("O projeto «${project.optString("name")}» será apagado. As criações e conversas associadas não são apagadas — ficam apenas sem projeto.")},confirmButton={TextButton(onClick={val id=project.getString("id");confirmDelete=null;if(selected==id)selected="";vm.deleteProject(id)},modifier=Modifier.testTag("confirm-delete-project")){Text("Apagar")}},dismissButton={TextButton(onClick={confirmDelete=null}){Text("Cancelar")}})}
 }
 
 fun requestFromTask(task:JSONObject,assets:List<JSONObject>)=GenerationRequest(task.optString("kind"),task.optString("prompt"),task.optString("conversation"),assets.firstOrNull{it.optString("id")==task.optString("reference")},task.optString("provider"),task.optDouble("durationRequested").takeIf{it.isFinite()})
